@@ -26,8 +26,9 @@ sequenceDiagram
   Note left of User : Prepare to poke
   Note right of SM : Mint 1 ticket for User
   User->>SM : Poke
-  Note right of SM : Store trace
+  Note right of SM : Store trace and burn 1 ticket
   SM-->>User : success
+  Note right of SM : Check available tickets for User
   User->>SM : Poke
   SM-->>User : error
 ```
