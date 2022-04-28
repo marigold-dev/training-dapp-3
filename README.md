@@ -23,6 +23,7 @@ Finally we introduce the Global table of Constant, a way to store more efficient
 
 ```mermaid
 sequenceDiagram
+  Note left of User : Prepare to poke
   Note right of SM : Mint 1 ticket for User
   User->>SM : Poke
   Note right of SM : Store trace
