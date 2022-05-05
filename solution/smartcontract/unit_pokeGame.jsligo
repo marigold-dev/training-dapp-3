@@ -11,7 +11,8 @@ let _ = Test.set_baker(faucet);
 let _ = Test.set_source(faucet);
 
 //contract origination
-let [taddr, _, _] = Test.originate(main, {pokeTraces : Map.empty as map<address, pokeMessage> , feedback : "kiss"}, 0 as tez);
+let my_ticket : ticket<string>> = Tezos.create_ticket("can_poke", 1 as nat);
+let [taddr, _, _] = Test.originate(main, {pokeTraces : Map.empty as map<address, pokeMessage> , feedback : "kiss" , ticketOwnership : Map.literal(list[  [sender1, my_ticket]  ]) as map<address,ticket<string>>  }, 0 as tez);//FIXME still not supported [sender1, my_ticket]])) }, 0 as tez);
 let contr = Test.to_contract(taddr);
 let contrAddress = Tezos.address(contr);
 let _ = Test.log("contract deployed with values : ");
@@ -39,3 +40,4 @@ let _testPoke = (s : address) : bool => {
   //********** TESTS *************/
  
   let testSender1Poke = _testPoke(sender1);
+  let testSender1PokeSecondTime = _testPoke(sender1);
