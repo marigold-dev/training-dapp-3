@@ -13,7 +13,7 @@ const _ = Test.set_source(faucet);
 
 
 const _tests = (main : PokeGameTest.main_fn) : bool => {
-  return PokeGameTest._testPoke([main,sender1]);
+  return PokeGameTest._testPoke([main,sender1,1 as nat]);
 };
 
 const _test_mutation = () : bool => {
