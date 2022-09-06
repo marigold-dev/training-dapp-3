@@ -13,6 +13,7 @@ export type return_ = [list<operation>, storage];
 
 export type parameter =
 | ["Poke"]
+| ["PokeAndGetFeedback", address]
 | ["Init", address, nat]
 ;
 
@@ -29,6 +30,32 @@ const poke = ([pokeTraces  , feedback  , ticketOwnership] : [map<address, pokeMe
         ticketOwnership : tom 
      }]
     });
+};
+
+// @no_mutation
+const pokeAndGetFeedback = ([oracleAddress,pokeTraces  , _feedback  , ticketOwnership]:[address,map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
+  
+  //extract opt ticket from map
+  const [t , tom] : [option<ticket<string>>, map<address,ticket<string>>]  = Map.get_and_update(Tezos.get_source(), None() as option<ticket<string>>,ticketOwnership);
+    
+  //Read the feedback view
+  let feedbackOpt : option<string> = Tezos.call_view("feedback", unit, oracleAddress);
+
+  return match(t, {
+        None : () => failwith("User does not have tickets => not allowed"),
+        Some : (_t : ticket<string>) =>
+
+  match( feedbackOpt , {
+    Some : (feedback : string) => {
+        let feedbackMessage = {receiver : oracleAddress ,feedback: feedback};
+        return [  list([]) as list<operation>, { 
+          feedback,
+          pokeTraces : Map.add(Tezos.get_source(),feedbackMessage , pokeTraces),
+          ticketOwnership : tom 
+          }]; 
+        }, 
+    None : () => failwith("Cannot find view feedback on given oracle address")
+  })});
 };
 
 const init = ([a, ticketCount, pokeTraces  , feedback  , ticketOwnership] : [address, nat, map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
@@ -54,7 +81,12 @@ export const main = ([action, store] : [parameter, storage]) : return_ => {
     let {pokeTraces  , feedback  , ticketOwnership } = store;
     return match (action, {
         Poke: () => poke([pokeTraces  , feedback  , ticketOwnership]) ,
-        Init: (initParam : [address, nat]) => init([initParam[0], initParam[1], pokeTraces  , feedback  , ticketOwnership]),
+        PokeAndGetFeedback: (other : address) => pokeAndGetFeedback([other,pokeTraces  , feedback  , ticketOwnership]),
+        Init: (initParam : [address, nat]) => init([initParam[0], initParam[1], pokeTraces  , feedback  , ticketOwnership])
       } 
     )
 };
+
+
+// @view
+const feedback = ([_, store] : [unit, storage]) : string => { return store.feedback };
