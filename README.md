@@ -301,17 +301,180 @@ Everything at the top-level was executed.
 Let play with the CLI
 
 ```bash
-ligo compile contract ./smartcontract/pokeGame.jsligo --output-file pokeGame.tz
+ligo compile contract ./smartcontract/pokeGame.jsligo --output-file pokeGame.tz --protocol jakarta
 ```
 
 Compile an initial storage (to pass later during deployment too)
 
 ```bash
-ligo compile storage ./smartcontract/pokeGame.jsligo '{pokeTraces : Map.empty as map<address, PokeGame.pokeMessage> , feedback : "kiss" , ticketOwnership : Map.empty as map<address,ticket<string>>}' --output-file pokeGameStorage.tz 
+ligo compile storage ./smartcontract/pokeGame.jsligo '{pokeTraces : Map.empty as map<address, pokeMessage> , feedback : "kiss" , ticketOwnership : Map.empty as map<address,ticket<string>>}' --output-file pokeGameStorage.tz  --protocol jakarta
 ```
 
+Redeploy to testnet, replacing <ACCOUNT_KEY_NAME> with your own user alias
 
-> Ligo unit tests do not support tickets for the moment (https://gitlab.com/ligolang/ligo/-/issues/1402)
+```bash
+tezos-client originate contract mycontract transferring 0 from <ACCOUNT_KEY_NAME> running pokeGame.tz --init "$(cat pokeGameStorage.tz)" --burn-cap 1 --force
+```
+
+```logs
+New contract KT1HRu51cEigmqa8jeLZkqXfL1QYHzSFAMdc originated.
+```
+
+## Step 4 : Adapt the fontend code
+
+Copy the new contract address KT1*** to update the file dapp/src/App.tsx
+
+```typescript
+      setContracts((await contractsService.getSimilar({address:"KT1HRu51cEigmqa8jeLZkqXfL1QYHzSFAMdc" , includeStorage:true, sort:{desc:"id"}})));
+```
+
+Rerun the app, we will check that can cannot use the app anymore without tickets
+
+```bash
+yarn run start
+```
+
+Connect with any wallet that has enough Tez, and Poke your own contract
+
+![pokefail](/doc/pokefail.png)
+
+My Kukai wallet is giving me back the error from the smart contract
+
+![kukaifail](/doc/kukaifail.png)
+
+Ok, so let's authorize some :sparkler: minting on my user and try again to poke
+
+We add a new button for minting on a specific contract, replace the full content of App.tsx as it :
+
+```typescript
+import { useState } from 'react';
+import './App.css';
+import ConnectButton from './ConnectWallet';
+import { TezosToolkit, WalletContract } from '@taquito/taquito';
+import DisconnectButton from './DisconnectWallet';
+import { Contract, ContractsService } from '@dipdup/tzkt-api';
+
+type pokeMessage = {
+  receiver : string,
+  feedback : string
+};
+
+function App() {
+  
+  const [Tezos, setTezos] = useState<TezosToolkit>(new TezosToolkit("https://jakartanet.tezos.marigold.dev"));
+  const [wallet, setWallet] = useState<any>(null);
+  const [userAddress, setUserAddress] = useState<string>("");
+  const [userBalance, setUserBalance] = useState<number>(0);
+
+  const [contractToPoke, setContractToPoke] = useState<string>("");
+  
+  //tzkt
+  const contractsService = new ContractsService( {baseUrl: "https://api.jakartanet.tzkt.io" , version : "", withCredentials : false});
+  const [contracts, setContracts] = useState<Array<Contract>>([]);
+  
+  const fetchContracts = () => {
+    (async () => {
+      setContracts((await contractsService.getSimilar({address:"KT1HRu51cEigmqa8jeLZkqXfL1QYHzSFAMdc" , includeStorage:true, sort:{desc:"id"}})));
+    })();
+  }
+  
+  //poke
+  const poke = async (e :  React.MouseEvent<HTMLButtonElement>, contract : Contract) => {  
+    e.preventDefault(); 
+    let c : WalletContract = await Tezos.wallet.at(""+contract.address);
+    try {
+      console.log("contractToPoke",contractToPoke);
+      const op = await c.methods.pokeAndGetFeedback(contractToPoke).send();
+      await op.confirmation();
+      alert("Tx done");
+    } catch (error : any) {
+      console.log(error);
+      console.table(`Error: ${JSON.stringify(error, null, 2)}`);
+    }
+  };
+
+    //mint
+    const mint = async (e :  React.MouseEvent<HTMLButtonElement>, contract : Contract) => {  
+      e.preventDefault(); 
+      let c : WalletContract = await Tezos.wallet.at(""+contract.address);
+      try {
+        console.log("contractToPoke",contractToPoke);
+        const op = await c.methods.init(userAddress,1).send();
+        await op.confirmation();
+        alert("Tx done");
+      } catch (error : any) {
+        console.log(error);
+        console.table(`Error: ${JSON.stringify(error, null, 2)}`);
+      }
+    };
+  
+  
+  return (
+    <div className="App">
+    <header className="App-header">
+    
+    <ConnectButton
+    Tezos={Tezos}
+    setWallet={setWallet}
+    setUserAddress={setUserAddress}
+    setUserBalance={setUserBalance}
+    wallet={wallet}
+    />
+    
+    <DisconnectButton
+    wallet={wallet}
+    setUserAddress={setUserAddress}
+    setUserBalance={setUserBalance}
+    setWallet={setWallet}
+    />
+
+    
+    <div>
+    I am {userAddress} with {userBalance} mutez
+    </div>
+    
+    
+    <br />
+    <div>
+    <button onClick={fetchContracts}>Fetch contracts</button>
+    <table><thead><tr><th>address</th><th>trace "contract - feedback - user"</th><th>action</th></tr></thead><tbody>
+    {contracts.map((contract) => <tr>
+      <td style={{borderStyle: "dotted"}}>{contract.address}</td>
+      <td style={{borderStyle: "dotted"}}>{(contract.storage !== null && contract.storage.pokeTraces !== null && Object.entries(contract.storage.pokeTraces).length > 0)?Object.keys(contract.storage.pokeTraces).map((k : string)=>contract.storage.pokeTraces[k].receiver+" "+contract.storage.pokeTraces[k].feedback+" "+k+","):""}</td>
+      <td style={{borderStyle: "dotted"}}><input type="text" onChange={e=>{console.log("e",e.currentTarget.value);setContractToPoke(e.currentTarget.value)}} placeholder='enter contract address here' />
+                                          <button onClick={(e) =>poke(e,contract)}>Poke</button>
+                                          <button onClick={(e)=>mint(e,contract)}>Mint 1 ticket</button></td>
+                              </tr>)}
+    </tbody></table>
+    </div>
+    
+    
+    </header>
+    </div>
+    );
+  }
+  
+  export default App;
+```
+
+Mint a ticket on this contract
+
+![mint](/doc/mint.png)
+
+then try to poke again, it should succeed now
+
+![success](/doc/success.png)
+
+
+Try to poke again, you should be out of tickets and it should fail
+
+![kukaifail](/doc/kukaifail.png)
+
+:confetti_ball: Congratulation, you know how to use tickets now and avoid DUP errors
+
+> Takeaways : 
+> - you can go further and improve the code like consuming one 1 ticket quantity at a time and manage it the right way
+> - You can also try to base your ticket on some duration time like JSON token can do, not using the data field as a string but as bytes and store a timestamp on it.  
 
 # :palm_tree: Conclusion :sun_with_face:
 
