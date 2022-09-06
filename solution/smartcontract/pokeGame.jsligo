@@ -7,115 +7,48 @@ type pokeMessage = {
 type storage = {
     pokeTraces : map<address, pokeMessage>,
     feedback : string,
-//    ticketOwnership : map<address,ticket<string>>  //ticket of claims
+    ticketOwnership : map<address,ticket<string>>  //ticket of claims
 };
 
 type return_ = [list<operation>, storage];
 
-type returned_feedback = [address, string]; //address that gives feedback and a string message
-
-type oracle_param = contract<returned_feedback>;
-
 type parameter =
 | ["Poke"]
-//| ["PokeAndGetFeedback", address]
-//| ["PokeAndGetFeedbackCallback", returned_feedback]
-//| ["GetFeedback",oracle_param]
+| ["Init",address]
 ;
 
-let poke = (store : storage) : return_ => {//[pokeTraces  , feedback  , ticketOwnership] : [map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
-
-    return [  list([]) as list<operation>, {...store, feedback : store.feedback, 
-        pokeTraces : Map.add(Tezos.source, {receiver : Tezos.self_address, feedback : ""}, store.pokeTraces) }]; 
-
-
-    /*
-    return [  list([]) as list<operation>, {feedback : feedback, 
-        pokeTraces : Map.add(Tezos.source, feedbackMessage, store.pokeTraces) , ticketOwnership : ticketOwnership}]; 
-*/
-
-    //check if caller has a valid ticket
-    /*
-    let [sender_ticket_opt, ticketOwnership_without_use_tickets] : [option<ticket<string>>, storage] =
-     Map.get_and_update(Tezos.sender, None() as option<ticket<string>>, store.ticketOwnership);
-
-     
-    return match( sender_ticket_opt , {
-        Some : (my_tickets : ticket<string>) => {
-            //need to read it, unwrap it
-            let [[addr, [claim, amt]], tickets] = Tezos.read_ticket(my_tickets);
-            if(claim != "can_poke") failwith("Ticket claim is different from can_vote");
-            // split 1 to burn, keep other to reset on map
-            let [ticket_to_burn, rest_of_tickets] =
-                match(Tezos.split_ticket(tickets, [1 as nat, abs(amt - (1 as nat))]), {
-                    None: () => failwith("Ticket split sum is incorrect") ,
-                    Some: (split_tickets: [ticket<string>, ticket<string>]) => split_tickets
-                });
-            //prepare message
-            let feedbackMessage = {receiver : Tezos.self_address ,feedback: ""};   
-            //check if need to clean the map     
-            if( amt - (1 as nat) == 0 ) { 
-                return [  list([]) as list<operation>, {...store, 
-                    pokeTraces : Map.add(Tezos.source, feedbackMessage, store.pokeTraces) }]; 
-             }
-            else {
-                return [  list([]) as list<operation>, {...store, 
-                    pokeTraces : Map.add(Tezos.source, feedbackMessage, store.pokeTraces) }]; 
-            }
-          } ,
-        None : () => failwith("User does not have enough valid tickets to poke")
-    });   
-    */
-  
+const poke = ([pokeTraces  , feedback  , ticketOwnership] : [map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
+    
+    //extract opt ticket from map
+    const [t , tom] : [option<ticket<string>>, map<address,ticket<string>>]  = Map.get_and_update(Tezos.get_source(), None() as option<ticket<string>>,ticketOwnership);
+    
+    return match(t, {
+        None : () => failwith("User does not have tickets => not allowed"),
+        Some : (_t : ticket<string>) => [  list([]) as list<operation>,{ //let t burn
+        feedback,
+        pokeTraces : Map.add(Tezos.get_source(), {receiver : Tezos.get_self_address(), feedback : ""},pokeTraces),
+        ticketOwnership : tom 
+     }]
+    });
 };
 
-/*
-let pokeAndGetFeedback = ([oracleAddress,store]:[address,storage]) : return_ => {
+const init = ([a, pokeTraces  , feedback  , ticketOwnership] : [address, map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
 
-  //Read the feedback view
-  let feedbackOpt : option<string> = Tezos.call_view("feedback", unit, oracleAddress);
-
-  match( feedbackOpt , {
-    Some : (feedback : string) => {
-        let feedbackMessage = {receiver : oracleAddress ,feedback: feedback};
-        return [  list([]) as list<operation>, {...store, 
-          pokeTraces : Map.add(Tezos.source, feedbackMessage , store.pokeTraces) }]; 
-        }, 
-    None : () => failwith("Cannot find view feedback on given oracle address")
-  });
+    return [  list([]) as list<operation>,{
+        feedback,
+        pokeTraces,
+        ticketOwnership : Map.add(a,Tezos.create_ticket("can_poke", 1 as nat),ticketOwnership) 
+     }];
 };
-*/
-
-/*
-let pokeAndGetFeedbackCallback = ([feedback,store] : [returned_feedback , storage]) : return_ => {
-    let feedbackMessage = {receiver : feedback[0] ,feedback: feedback[1]};
-    return [  list([]) as list<operation>, {...store, 
-        pokeTraces : Map.add(Tezos.source, feedbackMessage , store.pokeTraces) }]; 
-};
-
-
-let getFeedback = ([contract_callback,store] : [contract<returned_feedback>,storage]): return_ => {
-    let op : operation = Tezos.transaction(
-            [Tezos.self_address,store.feedback], 
-            (0 as mutez),
-            contract_callback);   
-    return [list([op]) ,store];
-};
-*/
 
 /* Main access point that dispatches to the entrypoints according to
 the smart contract parameter. */
-let main = ([action, store] : [parameter, storage]) : return_ => {
+const main = ([action, store] : [parameter, storage]) : return_ => {
     //destructure the storage to avoid DUP
-//    let {pokeTraces  , feedback  , ticketOwnership } = store;
+    let {pokeTraces  , feedback  , ticketOwnership } = store;
     return match (action, {
-        Poke: () => poke(store)//[pokeTraces  , feedback  , ticketOwnership]) ,
-       // PokeAndGetFeedback: (other : address) => pokeAndGetFeedback(other,store),
-       // PokeAndGetFeedbackCallback: (feedback : returned_feedback) => pokeAndGetFeedbackCallback(feedback,store),
-       // GetFeedback: (contract_callback: oracle_param)=> getFeedback(contract_callback,store)
-    } 
+        Poke: () => poke([pokeTraces  , feedback  , ticketOwnership]) ,
+        Init: (a : address) => init([a, pokeTraces  , feedback  , ticketOwnership]),
+      } 
     )
 };
-
-// @view
-let feedback = ([_, store] : [unit, storage]) : string => { return store.feedback };
