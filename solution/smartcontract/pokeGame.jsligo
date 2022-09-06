@@ -1,20 +1,19 @@
-
-type pokeMessage = {
+export type pokeMessage = {
     receiver : address,
     feedback : string
 };
 
-type storage = {
+export type storage = {
     pokeTraces : map<address, pokeMessage>,
     feedback : string,
     ticketOwnership : map<address,ticket<string>>  //ticket of claims
 };
 
-type return_ = [list<operation>, storage];
+export type return_ = [list<operation>, storage];
 
-type parameter =
+export type parameter =
 | ["Poke"]
-| ["Init",address]
+| ["Init", address, nat]
 ;
 
 const poke = ([pokeTraces  , feedback  , ticketOwnership] : [map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
@@ -32,23 +31,30 @@ const poke = ([pokeTraces  , feedback  , ticketOwnership] : [map<address, pokeMe
     });
 };
 
-const init = ([a, pokeTraces  , feedback  , ticketOwnership] : [address, map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
-
-    return [  list([]) as list<operation>,{
-        feedback,
-        pokeTraces,
-        ticketOwnership : Map.add(a,Tezos.create_ticket("can_poke", 1 as nat),ticketOwnership) 
-     }];
+const init = ([a, ticketCount, pokeTraces  , feedback  , ticketOwnership] : [address, nat, map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
+    if(ticketCount == (0 as nat)){
+        return [  list([]) as list<operation>,{
+            feedback,
+            pokeTraces,
+            ticketOwnership 
+            }];
+    } else {
+        return [  list([]) as list<operation>,{
+            feedback,
+            pokeTraces,
+            ticketOwnership : Map.add(a,Tezos.create_ticket("can_poke", ticketCount),ticketOwnership) 
+            }];
+    }
 };
 
 /* Main access point that dispatches to the entrypoints according to
 the smart contract parameter. */
-const main = ([action, store] : [parameter, storage]) : return_ => {
+export const main = ([action, store] : [parameter, storage]) : return_ => {
     //destructure the storage to avoid DUP
     let {pokeTraces  , feedback  , ticketOwnership } = store;
     return match (action, {
         Poke: () => poke([pokeTraces  , feedback  , ticketOwnership]) ,
-        Init: (a : address) => init([a, pokeTraces  , feedback  , ticketOwnership]),
+        Init: (initParam : [address, nat]) => init([initParam[0], initParam[1], pokeTraces  , feedback  , ticketOwnership]),
       } 
     )
 };
