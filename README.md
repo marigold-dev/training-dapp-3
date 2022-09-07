@@ -490,7 +490,7 @@ function App() {
   export default App;
 ```
 
-> Note : change again here by your own contract address `await contractsService.getSimilar({address:"KT1HRu51cEigmqa8jeLZkqXfL1QYHzSFAMdc"`
+> Note : change again here by your own contract address where code is `await contractsService.getSimilar({address:"KT1HRu51cEigmqa8jeLZkqXfL1QYHzSFAMdc"`
 
 Refresh the page, now you have the Mint button
 
