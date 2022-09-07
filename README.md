@@ -12,7 +12,7 @@ Training dapp n°3
 Previously, you learned how to do inter-contract calls, use view and do unit testing.
 In this third session, you will enhance your skills on :
 - using tickets
-- don't mess up with tickets
+- don't mess up with `DUP` errors while manipulating tickets
 
 On the second version of the poke game, you were able poke any contract without constraint. We will introduce now a right to poke via tickets. Ticket are a kind of object that cannot be copied and can hold some trustable information.
 
@@ -20,13 +20,15 @@ On the second version of the poke game, you were able poke any contract without 
 
 ```mermaid
 sequenceDiagram
-  Note left of User : Prepare to poke
+  Admin->>SM : Init(User,1)
   Note right of SM : Mint 1 ticket for User
+  Note left of User : Prepare to poke
   User->>SM : Poke
+  Note right of SM : Check available tickets for User
   Note right of SM : Store trace and burn 1 ticket
   SM-->>User : success
-  Note right of SM : Check available tickets for User
   User->>SM : Poke
+  Note right of SM : Check available tickets for User
   SM-->>User : error
 ```
 
@@ -41,15 +43,15 @@ Get your code from the session 2 or the solution [here](https://github.com/marig
 Tickets just came with Tezos Edo upgrade, they are great and often misundersood
 
 Ticket structure :
-- ticketer : (address) the contract address of the creator
-- value : (any) Can be any type from string to bytes
+- ticketer : (address) the creator contract address  
+- value : (any) Can be any type from string to bytes. It holds whatever arbitrary values
 - amount : (nat) quantity of tickets minted
 
 Tickets features :
-- Not comparable : it makes no sense
+- Not comparable : it makes no sense because tickets from same type are all equals and can be merged into a single ticket, for different types it is not comparable
 - Transferable : you can send ticket as Transaction parameter
-- Storable : only on smart contract storage for the moment
-- Non dupable : you cannot copy or duplicate a ticket, it is a unique singleton object living in the network
+- Storable : only on smart contract storage for the moment (Note : a new protocol release will enable it for implicit account too)
+- Non dupable : you cannot copy or duplicate a ticket, it is a unique singleton object living in specific blockchain instance
 - Splittable : if amount is > 2 then you can split ticket object into 2 objects
 - Mergable : you can merge ticket from same ticketer and same value
 - Mintable/burnable : this is the way to create and destroy tickets
@@ -61,7 +63,7 @@ Example of usage :
 - Wrapped crypto : hold XTZ colletral agains a ticket for redeeming it
 - many others ...
 
-## Step 1 : Mint
+## Step 1 : :seedling: Mint
 
 Minting is the action of creating ticket from void. In general, minting operations are done by administrators of smart contract or either by end user (while creating an NFT for example)
 
@@ -69,17 +71,16 @@ Edit the ./smartcontract/pokeGame.jsligo file and add a map of ticket ownership 
 This map will keep a list of consumable ticket for each authrozized user. It will be used as a burnable right to poke here 
 
 ```javascript
-type storage = {
+export type storage = {
     pokeTraces : map<address, pokeMessage>,
     feedback : string,
-    ticketOwnership : map<address,ticket>
+    ticketOwnership : map<address,ticket<string>>  //ticket of claims
 };
 ```
 
 In order to fill this map, we are adding an new administration endpoint. Modify the `parameter` type, update the `main` function and add the new function `init`
 
-
-A new entrypoint `Init` will add x tickets to a sepcific user 
+A new entrypoint `Init` will add x tickets to a specific user
 
 > Note : to simplify, we don't add security around this entrypoint, but in Production we should do it
 
@@ -93,9 +94,9 @@ export type parameter =
 
 Main function will add this new entrypoint too.
 
-Tickets are very special objects that cannot be **DUPLICATED**. During compilation to Michelson, using a variable twice, copying a structure holding tickets are genrating `DUP` command. To avoid our contract to fail at runtime, Ligo will parse statically our code during compilation to detect any DUP on tickets.
+Tickets are very special objects that cannot be **DUPLICATED**. During compilation to Michelson, using a variable twice, copying a structure holding tickets are generating `DUP` command. To avoid our contract to fail at runtime, Ligo will parse statically our code during compilation time to detect any DUP on tickets.
 
-To solve most of issues, we need to segregate ticket objects, or structures containing ticket objects in order to avoid compilation errors. To do this, just destructure any object until you get tickets isolated on a variable.
+To solve most of issues, we need to segregate ticket objects from the rest of the storage, or structures containing ticket objects in order to avoid compilation errors. To do this, just destructure any object until you get tickets isolated.
 
 Here below, `store` object is destructured to isolate `ticketOwnership` object holding our tickets. You need then to modify the function arguments to pass each field of the the storage separately
 
@@ -154,9 +155,11 @@ const poke = ([pokeTraces  , feedback  , ticketOwnership] : [map<address, pokeMe
 ```
 First, we need to extract an existing optional ticket from the map. If we try to do operation directly on the map, even trying to find or get this object in the structure, a DUP command can be generated. We use the secure `get_and_update` function from Map library to extract the item from the map and avoid any copy.
 
-Second step, we can look at the optional ticket, if it exists, then we burn it (i.e we do not store it somewhere on the storage anymore) and a a trace of execution, otherwise we fail with an error message
+> Note : more information about this function [here](https://ligolang.org/docs/reference/map-reference) 
 
-Same for `pokeAndGetFeedback` function, do same operations as below 
+Second step, we can look at the optional ticket, if it exists, then we burn it (i.e we do not store it somewhere on the storage anymore) and add a trace of execution, otherwise we fail with an error message
+
+Same for `pokeAndGetFeedback` function, do same checks and type modifications as below
 
 ```javascript
 // @no_mutation
@@ -192,11 +195,40 @@ Compile the contract to check any errors
 ligo compile contract ./smartcontract/pokeGame.jsligo 
 ```
 
+Check on logs that everything is fine :ok_hand:
+
+Try to display a DUP error now :japanese_goblin:
+
+Add this line on poke function somewhere
+
+```typescript
+  const t2 = Map.find_opt(Tezos.get_source(),ticketOwnership);  
+```
+
+Compile again 
+
+```bash
+ligo compile contract ./smartcontract/pokeGame.jsligo 
+```
+
+This time you should see the `DUP error` generated by the find function
+
+```logs
+At line 152 characters 13 to 18,
+type map address (ticket string) cannot be used here because it is not duplicable. Only duplicable types can be used with the DUP instruction and as view inputs and outputs.
+At line 152 characters 13 to 18,
+Ticket in unauthorized position (type error).
+```
+
+Ok so remove it !!! :negative_squared_cross_mark:
+
 ## Step 2 : Test authorization poking
 
 Update the unit tests files to see if we can still poke
 
-```javascript =
+Edit ./smartcontract/unitpokeGame.jsligo
+
+```typescript
 #import "./pokeGame.jsligo" "PokeGame"
 
 export type main_fn = (parameter : PokeGame.parameter, storage : PokeGame.storage) => PokeGame.return_ ;
@@ -255,15 +287,15 @@ export const _testPoke = ([main , s, ticketCount] : [main_fn , address, nat]) : 
   const testSender1PokeWithNoTicketsToFail = ! _testPoke([PokeGame.main,sender1, 0 as nat]) ;
 ```
 
-On line 29, we initialize the smartcontract with some tickets
-On line 40, we check if we have an error on the test (i.e user is ot allowed to poke)
-On line 53, we test with the first user using a preexisting ticket
-On line 56, we test with the same user again but with no ticket and we should have a catched error 
+- On line 29, we initialize the smartcontract with some tickets
+- On line 40, we check if we have an error on the test (i.e user is ot allowed to poke)
+- On line 53, we test with the first user using a preexisting ticket
+- On line 56, we test with the same user again but with no ticket and we should have a catched error 
 
 Run the test, and look at the logs to track execution
 
 ```bash
-ligo run test unit_pokeGame.jsligo
+ligo run test ./smartcontract/unit_pokeGame.jsligo
 ```
 
 First test should be fine
@@ -277,7 +309,7 @@ Success (2674n)
 Success (1850n)
 ```
 
-Second one should fail and be catched
+Second one should fail and be catched by the negation ` ! _testPoke`
 ```logs
 "*** Run test to fail ***"
 "contract deployed with values : "
@@ -288,7 +320,7 @@ Success (2218n)
 Fail (Rejected (("User does not have tickets => not allowed" , KT1RDQWZZx8b1iLTTbqbV7AMb8oZ3MTY3PHD)))
 ```
 
-Final report, with only `true` values
+Final report, with only `true` values as outputs
 
 ```logs
 Everything at the top-level was executed.
@@ -296,7 +328,7 @@ Everything at the top-level was executed.
 - testSender1PokeWithNoTicketsToFail exited with value true.
 ```
 
-## Step 3 : Redeploy smart contract
+## Step 3 : Redeploy the smart contract
 
 Let play with the CLI
 
@@ -310,7 +342,7 @@ Compile an initial storage (to pass later during deployment too)
 ligo compile storage ./smartcontract/pokeGame.jsligo '{pokeTraces : Map.empty as map<address, pokeMessage> , feedback : "kiss" , ticketOwnership : Map.empty as map<address,ticket<string>>}' --output-file pokeGameStorage.tz  --protocol jakarta
 ```
 
-Redeploy to testnet, replacing <ACCOUNT_KEY_NAME> with your own user alias
+Redeploy to testnet, replacing `<ACCOUNT_KEY_NAME>` with your own user alias :warning:
 
 ```bash
 tezos-client originate contract mycontract transferring 0 from <ACCOUNT_KEY_NAME> running pokeGame.tz --init "$(cat pokeGameStorage.tz)" --burn-cap 1 --force
@@ -320,7 +352,7 @@ tezos-client originate contract mycontract transferring 0 from <ACCOUNT_KEY_NAME
 New contract KT1HRu51cEigmqa8jeLZkqXfL1QYHzSFAMdc originated.
 ```
 
-## Step 4 : Adapt the fontend code
+## Step 4 : Adapt the frontend code
 
 Copy the new contract address KT1*** to update the file dapp/src/App.tsx
 
@@ -331,6 +363,7 @@ Copy the new contract address KT1*** to update the file dapp/src/App.tsx
 Rerun the app, we will check that can cannot use the app anymore without tickets
 
 ```bash
+cd dapp
 yarn run start
 ```
 
@@ -457,16 +490,19 @@ function App() {
   export default App;
 ```
 
+> Note : change again here by your own contract address `await contractsService.getSimilar({address:"KT1HRu51cEigmqa8jeLZkqXfL1QYHzSFAMdc"`
+
+Refresh the page, now you have the Mint button
+
 Mint a ticket on this contract
 
 ![mint](/doc/mint.png)
 
-then try to poke again, it should succeed now
+Wait for the Tx popup confirmation and then try to poke again, it should succeed now
 
 ![success](/doc/success.png)
 
-
-Try to poke again, you should be out of tickets and it should fail
+Wait for the Tx popup confirmation and try to poke again, you should be out of tickets and it should fail
 
 ![kukaifail](/doc/kukaifail.png)
 
@@ -474,12 +510,13 @@ Try to poke again, you should be out of tickets and it should fail
 
 > Takeaways : 
 > - you can go further and improve the code like consuming one 1 ticket quantity at a time and manage it the right way
+> - you can also implement different type of AUTHZ, not only `can poke` claim
 > - You can also try to base your ticket on some duration time like JSON token can do, not using the data field as a string but as bytes and store a timestamp on it.  
 
 # :palm_tree: Conclusion :sun_with_face:
 
-Now, you are able to understand ticket , upgrade deployed contracts
+Now, you are able to understand ticket
 
-On next training, //TODO
+On next training, we will learn hot to upgrade deployed contracts
 
 [:arrow_right: NEXT](https://github.com/marigold-dev/training-dapp-4)

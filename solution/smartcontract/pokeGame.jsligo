@@ -87,6 +87,5 @@ export const main = ([action, store] : [parameter, storage]) : return_ => {
     )
 };
 
-
 // @view
 const feedback = ([_, store] : [unit, storage]) : string => { return store.feedback };
