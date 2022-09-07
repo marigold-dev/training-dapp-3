@@ -515,7 +515,7 @@ Wait for the Tx popup confirmation and try to poke again, you should be out of t
 
 # :palm_tree: Conclusion :sun_with_face:
 
-Now, you are able to understand ticket
+Now, you are able to understand ticket. If you want to learn more about tickets, read this great article [here](https://www.marigold.dev/post/tickets-for-dummies)
 
 On next training, we will learn hot to upgrade deployed contracts
 
