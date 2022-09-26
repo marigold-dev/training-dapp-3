@@ -4,6 +4,8 @@ import ConnectButton from './ConnectWallet';
 import { TezosToolkit, WalletContract } from '@taquito/taquito';
 import DisconnectButton from './DisconnectWallet';
 import { Contract, ContractsService } from '@dipdup/tzkt-api';
+import { PokeGameWalletType } from './pokeGame.types';
+import { address } from './type-aliases';
 
 type pokeMessage = {
   receiver : string,
@@ -12,7 +14,7 @@ type pokeMessage = {
 
 function App() {
   
-  const [Tezos, setTezos] = useState<TezosToolkit>(new TezosToolkit("https://jakartanet.tezos.marigold.dev"));
+  const [Tezos, setTezos] = useState<TezosToolkit>(new TezosToolkit("https://ghostnet.tezos.marigold.dev"));
   const [wallet, setWallet] = useState<any>(null);
   const [userAddress, setUserAddress] = useState<string>("");
   const [userBalance, setUserBalance] = useState<number>(0);
@@ -20,21 +22,22 @@ function App() {
   const [contractToPoke, setContractToPoke] = useState<string>("");
   
   //tzkt
-  const contractsService = new ContractsService( {baseUrl: "https://api.jakartanet.tzkt.io" , version : "", withCredentials : false});
+  const contractsService = new ContractsService( {baseUrl: "https://api.ghostnet.tzkt.io" , version : "", withCredentials : false});
   const [contracts, setContracts] = useState<Array<Contract>>([]);
   
   const fetchContracts = () => {
     (async () => {
-      setContracts((await contractsService.getSimilar({address:"KT1HRu51cEigmqa8jeLZkqXfL1QYHzSFAMdc" , includeStorage:true, sort:{desc:"id"}})));    })();
+      setContracts((await contractsService.getSimilar({address:"KT1AD1FLvNUoxyEH1GybPgki1ZB7Tgbfmn6a" , includeStorage:true, sort:{desc:"id"}})));
+    })();
   }
   
   //poke
   const poke = async (e :  React.MouseEvent<HTMLButtonElement>, contract : Contract) => {  
     e.preventDefault(); 
-    let c : WalletContract = await Tezos.wallet.at(""+contract.address);
+    let c : PokeGameWalletType = await Tezos.wallet.at(""+contract.address);
     try {
       console.log("contractToPoke",contractToPoke);
-      const op = await c.methods.pokeAndGetFeedback(contractToPoke).send();
+      const op = await c.methods.pokeAndGetFeedback(contractToPoke as address).send();
       await op.confirmation();
       alert("Tx done");
     } catch (error : any) {
@@ -105,4 +108,3 @@ function App() {
   }
   
   export default App;
-  
