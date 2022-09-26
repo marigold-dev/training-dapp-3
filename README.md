@@ -240,7 +240,7 @@ Ok so remove it !!! :negative_squared_cross_mark:
 
 Update the unit tests files to see if we can still poke
 
-Edit `./contracts/unitpokeGame.jsligo`
+Edit `./contracts/unit_pokeGame.jsligo`
 
 ```typescript
 #import "./pokeGame.jsligo" "PokeGame"
