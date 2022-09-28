@@ -27,7 +27,7 @@ function App() {
   
   const fetchContracts = () => {
     (async () => {
-      setContracts((await contractsService.getSimilar({address:"KT1AD1FLvNUoxyEH1GybPgki1ZB7Tgbfmn6a" , includeStorage:true, sort:{desc:"id"}})));
+      setContracts((await contractsService.getSimilar({address: process.env["REACT_APP_CONTRACT_ADDRESS"]!, includeStorage:true, sort:{desc:"id"}})));
     })();
   }
   

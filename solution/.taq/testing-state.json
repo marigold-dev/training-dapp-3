@@ -1,40 +1,14 @@
 {
     "operations": {},
     "tasks": {
-        "@taqueria/plugin-taquito.deploy.1663575095546": {
+        "@taqueria/plugin-taquito.deploy.1664382001505": {
             "task": "deploy",
             "plugin": "@taqueria/plugin-taquito",
-            "time": 1663575095546,
-            "output": [
-                {
-                    "contract": "pokeGame",
-                    "address": "KT1PtDjmiJ1LeLd9UdcTQyswLjELPHjU41vG",
-                    "alias": "pokeGame",
-                    "destination": "ghostnet"
-                }
-            ]
-        },
-        "@taqueria/plugin-taquito.deploy.1663840422977": {
-            "task": "deploy",
-            "plugin": "@taqueria/plugin-taquito",
-            "time": 1663840422977,
+            "time": 1664382001505,
             "output": [
                 {
                     "contract": "pokeGame.tz",
-                    "address": "KT1FSQ8BCkhqiRmK4KSjqj7Bsre9oteKoK8r",
-                    "alias": "pokeGame",
-                    "destination": "ghostnet"
-                }
-            ]
-        },
-        "@taqueria/plugin-taquito.deploy.1664187316326": {
-            "task": "deploy",
-            "plugin": "@taqueria/plugin-taquito",
-            "time": 1664187316326,
-            "output": [
-                {
-                    "contract": "pokeGame.tz",
-                    "address": "KT1AD1FLvNUoxyEH1GybPgki1ZB7Tgbfmn6a",
+                    "address": "KT1DG2TY9cWK3i7D321rxjLeHJCLqSRFvhTf",
                     "alias": "pokeGame",
                     "destination": "ghostnet"
                 }

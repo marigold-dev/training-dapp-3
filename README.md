@@ -203,6 +203,8 @@ const default_storage = {
 
 Compile the contract to check any errors
 
+> Note : don't forget to check that Docker is running
+
 ```bash
 yarn install
 
@@ -258,7 +260,7 @@ const _ = Test.set_baker(faucet);
 const _ = Test.set_source(faucet);
 
 //functions
-export const _testPoke = ([main , s, ticketCount] : [main_fn , address, nat]) : bool => {
+export const _testPoke = (main : main_fn, s : address, ticketCount : nat, expectedResult : bool) : unit => {
 
     //contract origination
     const [taddr, _, _] = Test.originate(main, {
@@ -282,10 +284,13 @@ export const _testPoke = ([main , s, ticketCount] : [main_fn , address, nat]) : 
     Test.log(status);
 
     return match(status,{
-        Fail : (_tee : test_exec_error) => false,
+        Fail : (tee : test_exec_error) => match(tee,{
+                                Other: (msg : string) => assert_with_error(expectedResult==false,msg), 
+                                Balance_too_low : (_record : [ address ,  tez , tez ]) => assert_with_error(expectedResult==false,"ERROR Balance_too_low"), 
+                                Rejected: (s:[michelson_program , address])=>assert_with_error(expectedResult==false,Test.to_string(s[0]))}),
         Success : (_n : nat) => match(Map.find_opt (s, (Test.get_storage(taddr) as PokeGame.storage).pokeTraces), {
-                                Some: (pokeMessage: PokeGame.pokeMessage) => { assert_with_error(pokeMessage.feedback == "","feedback "+pokeMessage.feedback+" is not equal to expected "+"(empty)"); assert_with_error(pokeMessage.receiver == contrAddress,"receiver is not equal"); return true; } ,
-                                None: () => false
+                                Some: (pokeMessage: PokeGame.pokeMessage) => { assert_with_error(pokeMessage.feedback == "","feedback "+pokeMessage.feedback+" is not equal to expected "+"(empty)"); assert_with_error(pokeMessage.receiver == contrAddress,"receiver is not equal");} ,
+                                None: () => assert_with_error(expectedResult==false,"don't find traces")
        })
     });
       
@@ -295,16 +300,16 @@ export const _testPoke = ([main , s, ticketCount] : [main_fn , address, nat]) : 
   //********** TESTS *************/
 
   const _ = Test.log("*** Run test to pass ***"); 
-  const testSender1Poke = _testPoke([PokeGame.main,sender1, 1 as nat]);
+  const testSender1Poke = _testPoke([PokeGame.main,sender1, 1 as nat,true]);
 
   const _ = Test.log("*** Run test to fail ***"); 
-  const testSender1PokeWithNoTicketsToFail = ! _testPoke([PokeGame.main,sender1, 0 as nat]) ;
+  const testSender1PokeWithNoTicketsToFail = _testPoke([PokeGame.main,sender1, 0 as nat,false]) ;
 ```
 
 - On line 29, we initialize the smartcontract with some tickets
-- On line 40, we check if we have an error on the test (i.e user is ot allowed to poke)
-- On line 53, we test with the first user using a preexisting ticket
-- On line 56, we test with the same user again but with no ticket and we should have a catched error 
+- On line 39, we check if we have an error on the test (i.e user is ot allowed to poke)
+- On line 56, we test with the first user using a preexisting ticket
+- On line 59, we test with the same user again but with no ticket and we should have a catched error 
 
 Run the test, and look at the logs to track execution
 
@@ -314,32 +319,31 @@ taq test unit_pokeGame.jsligo
 
 First test should be fine
 ```logs
-"*** Run test to pass ***"
-"contract deployed with values : "
-KT1JVH7KyY4RVWgLRdX43WJojBRzMABN8eJu(None)
-Success (2674n)
-"*** Check initial ticket is here ***"
-{feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = [tz1TDZG4vFoA2xutZMYauUnS4HVucnAGQSpZ -> (KT1JVH7KyY4RVWgLRdX43WJojBRzMABN8eJu , ("can_poke" , 1n))]}
-Success (1850n)
-```
-
-Second one should fail and be catched by the negation ` ! _testPoke`
-```logs
-"*** Run test to fail ***"
-"contract deployed with values : "
-KT1RDQWZZx8b1iLTTbqbV7AMb8oZ3MTY3PHD(None)
-Success (2218n)
-"*** Check initial ticket is here ***"
-{feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = []}
-Fail (Rejected (("User does not have tickets => not allowed" , KT1RDQWZZx8b1iLTTbqbV7AMb8oZ3MTY3PHD)))
-```
-
-Final report, with only `true` values as outputs
-
-```logs
-Everything at the top-level was executed.
-- testSender1Poke exited with value true.
-- testSender1PokeWithNoTicketsToFail exited with value true.
+┌──────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Contract             │ Test Results                                                                                                                                                   │
+├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ unit_pokeGame.jsligo │ "Sender 1 has balance : "                                                                                                                                      │
+│                      │ 3800000000000mutez                                                                                                                                             │
+│                      │ "*** Run test to pass ***"                                                                                                                                     │
+│                      │ "contract deployed with values : "                                                                                                                             │
+│                      │ KT1JVH7KyY4RVWgLRdX43WJojBRzMABN8eJu(None)                                                                                                                     │
+│                      │ Success (2674n)                                                                                                                                                │
+│                      │ "*** Check initial ticket is here ***"                                                                                                                         │
+│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = [tz1TDZG4vFoA2xutZMYauUnS4HVucnAGQSpZ -> (KT1JVH7KyY4RVWgLRdX43WJojBRzMABN8eJu , ("can_poke" , 1n))]} │
+│                      │ Success (1850n)                                                                                                                                                │
+│                      │ "*** Run test to fail ***"                                                                                                                                     │
+│                      │ "contract deployed with values : "                                                                                                                             │
+│                      │ KT1UetUfHaJHa4skPVzyMzUahZtaVECt5MrF(None)                                                                                                                     │
+│                      │ Success (2218n)                                                                                                                                                │
+│                      │ "*** Check initial ticket is here ***"                                                                                                                         │
+│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = []}                                                                                                   │
+│                      │ Fail (Rejected (("User does not have tickets => not allowed" , KT1UetUfHaJHa4skPVzyMzUahZtaVECt5MrF)))                                                         │
+│                      │ Everything at the top-level was executed.                                                                                                                      │
+│                      │ - testSender1Poke exited with value ().                                                                                                                        │
+│                      │ - testSender1PokeWithNoTicketsToFail exited with value ().                                                                                                     │
+│                      │                                                                                                                                                                │
+│                      │ 🎉 All tests passed 🎉                                                                                                                                         │
+└──────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Step 3 : Redeploy the smart contract
@@ -360,22 +364,16 @@ taq deploy pokeGame.tz -e testing
 ┌─────────────┬──────────────────────────────────────┬──────────┬─────────────┐
 │ Contract    │ Address                              │ Alias    │ Destination │
 ├─────────────┼──────────────────────────────────────┼──────────┼─────────────┤
-│ pokeGame.tz │ KT1AD1FLvNUoxyEH1GybPgki1ZB7Tgbfmn6a │ pokeGame │ ghostnet    │
+│ pokeGame.tz │ KT1DG2TY9cWK3i7D321rxjLeHJCLqSRFvhTf │ pokeGame │ ghostnet    │
 └─────────────┴──────────────────────────────────────┴──────────┴─────────────┘
 ```
 
 ## Step 4 : Adapt the frontend code
 
-Copy the new contract address KT1*** to update the file `app/src/App.tsx`
-
-```typescript
-      setContracts((await contractsService.getSimilar({address:"KT1AD1FLvNUoxyEH1GybPgki1ZB7Tgbfmn6a" , includeStorage:true, sort:{desc:"id"}})));
-```
-
 Rerun the app, we will check that can cannot use the app anymore without tickets
 
 ```bash
-cd dapp
+cd app
 yarn run start
 ```
 
@@ -421,7 +419,7 @@ function App() {
   
   const fetchContracts = () => {
     (async () => {
-      setContracts((await contractsService.getSimilar({address:"KT1AD1FLvNUoxyEH1GybPgki1ZB7Tgbfmn6a" , includeStorage:true, sort:{desc:"id"}})));
+      setContracts((await contractsService.getSimilar({address: process.env["REACT_APP_CONTRACT_ADDRESS"]!, includeStorage:true, sort:{desc:"id"}})));
     })();
   }
   
@@ -503,8 +501,6 @@ function App() {
   
   export default App;
 ```
-
-> Note : change again here by your own contract address where code is `await contractsService.getSimilar({address:"KT1AD1FLvNUoxyEH1GybPgki1ZB7Tgbfmn6a"`
 
 Refresh the page, now you have the Mint button
 

@@ -33,7 +33,6 @@ const poke = ([pokeTraces  , feedback  , ticketOwnership] : [map<address, pokeMe
 };
 
 // @no_mutation
-// @no_mutation
 const pokeAndGetFeedback = ([oracleAddress,pokeTraces  , _feedback  , ticketOwnership]:[address,map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
   
   //extract opt ticket from map
