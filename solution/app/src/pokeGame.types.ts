@@ -1,21 +1,30 @@
 
 import { ContractAbstractionFromContractType, WalletContractAbstractionFromContractType } from './type-utils';
-import { address, MMap } from './type-aliases';
+import { address, MMap, nat, ticket } from './type-aliases';
 
-type Storage = {
+export type Storage = {
     feedback: string;
     pokeTraces: MMap<address, {
         feedback: string;
         receiver: address;
     }>;
+    ticketOwnership: MMap<address, ticket>;
 };
 
 type Methods = {
+    init: (
+        _0: address,
+        _1: nat,
+    ) => Promise<void>;
     poke: () => Promise<void>;
     pokeAndGetFeedback: (param: address) => Promise<void>;
 };
 
 type MethodsObject = {
+    init: (params: {
+        0: address,
+        1: nat,
+    }) => Promise<void>;
     poke: () => Promise<void>;
     pokeAndGetFeedback: (param: address) => Promise<void>;
 };

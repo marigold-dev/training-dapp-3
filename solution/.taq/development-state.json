@@ -1,17 +1,6 @@
 {
     "operations": {},
     "tasks": {
-        "@taqueria/plugin-ligo.compile.1664371516887": {
-            "task": "compile",
-            "plugin": "@taqueria/plugin-ligo",
-            "time": 1664371516887,
-            "output": [
-                {
-                    "contract": "pokeGame.jsligo",
-                    "artifact": "Not compiled"
-                }
-            ]
-        },
         "@taqueria/plugin-ligo.compile.1664371856389": {
             "task": "compile",
             "plugin": "@taqueria/plugin-ligo",
@@ -116,6 +105,21 @@
             "task": "compile",
             "plugin": "@taqueria/plugin-ligo",
             "time": 1664380625899,
+            "output": [
+                {
+                    "contract": "pokeGame.jsligo",
+                    "artifact": "artifacts/pokeGame.tz"
+                },
+                {
+                    "contract": "pokeGame.storages.jsligo",
+                    "artifact": "artifacts/pokeGame.default_storage.tz\n"
+                }
+            ]
+        },
+        "@taqueria/plugin-ligo.compile.1664382972735": {
+            "task": "compile",
+            "plugin": "@taqueria/plugin-ligo",
+            "time": 1664382972735,
             "output": [
                 {
                     "contract": "pokeGame.jsligo",

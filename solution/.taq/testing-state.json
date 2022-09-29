@@ -13,6 +13,19 @@
                     "destination": "ghostnet"
                 }
             ]
+        },
+        "@taqueria/plugin-taquito.deploy.1664382989946": {
+            "task": "deploy",
+            "plugin": "@taqueria/plugin-taquito",
+            "time": 1664382989946,
+            "output": [
+                {
+                    "contract": "pokeGame.tz",
+                    "address": "KT1X6xnojnNwuSZ9TAGNqU7USTSvgidKAZ3Q",
+                    "alias": "pokeGame",
+                    "destination": "ghostnet"
+                }
+            ]
         }
     }
 }

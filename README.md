@@ -348,15 +348,11 @@ First test should be fine
 
 ## Step 3 : Redeploy the smart contract
 
-Let play with the CLI
+Let play with the CLI to compile and deploy
 
 ```bash
-taq compile pokeGame.jsligo
-```
-
-Redeploy to testnet
-
-```bash
+taq compile pokeGame.jsligo 
+taq generate types ./app/src
 taq deploy pokeGame.tz -e testing
 ```
 
@@ -367,6 +363,8 @@ taq deploy pokeGame.tz -e testing
 │ pokeGame.tz │ KT1DG2TY9cWK3i7D321rxjLeHJCLqSRFvhTf │ pokeGame │ ghostnet    │
 └─────────────┴──────────────────────────────────────┴──────────┴─────────────┘
 ```
+
+> :warning: Note : we will need to use `Storage` type on the frontend side, by default, taquito does not export it. Export the type on the file `pokeGame.types.ts` adding a keywork `export` as it : `export type Storage = { ...`
 
 ## Step 4 : Adapt the frontend code
 
@@ -390,19 +388,15 @@ Ok, so let's authorize some :sparkler: minting on my user and try again to poke
 We add a new button for minting on a specific contract, replace the full content of `App.tsx` as it :
 
 ```typescript
+import { Contract, ContractsService } from '@dipdup/tzkt-api';
+import { TezosToolkit } from '@taquito/taquito';
+import { BigNumber } from "bignumber.js";
 import { useState } from 'react';
 import './App.css';
 import ConnectButton from './ConnectWallet';
-import { TezosToolkit, WalletContract } from '@taquito/taquito';
 import DisconnectButton from './DisconnectWallet';
-import { Contract, ContractsService } from '@dipdup/tzkt-api';
-import { PokeGameWalletType } from './pokeGame.types';
-import { address } from './type-aliases';
-
-type pokeMessage = {
-  receiver : string,
-  feedback : string
-};
+import { PokeGameWalletType, Storage } from './pokeGame.types';
+import { address, nat } from './type-aliases';
 
 function App() {
   
@@ -415,11 +409,21 @@ function App() {
   
   //tzkt
   const contractsService = new ContractsService( {baseUrl: "https://api.ghostnet.tzkt.io" , version : "", withCredentials : false});
-  const [contracts, setContracts] = useState<Array<Contract>>([]);
+  const [contracts, setContracts] = useState<Array<Contract>>([]);  
+  const [contractStorages, setContractStorages] = useState<Map<string,Storage>>(new Map());  
+  
   
   const fetchContracts = () => {
     (async () => {
-      setContracts((await contractsService.getSimilar({address: process.env["REACT_APP_CONTRACT_ADDRESS"]!, includeStorage:true, sort:{desc:"id"}})));
+      const tzktcontracts : Array<Contract>=  await contractsService.getSimilar({address: process.env["REACT_APP_CONTRACT_ADDRESS"]!, includeStorage:true, sort:{desc:"id"}});
+      setContracts(tzktcontracts);
+      const taquitoContracts : Array<PokeGameWalletType> = await Promise.all(tzktcontracts.map(async (tzktcontract) => await Tezos.wallet.at(tzktcontract.address!) as PokeGameWalletType));
+      const map = new Map<string,Storage>();   
+      for(const c of taquitoContracts){
+        const s : Storage =  await c.storage();
+        map.set(c.address,s);
+      }
+      setContractStorages(map);      
     })();
   }
   
@@ -428,7 +432,7 @@ function App() {
     e.preventDefault(); 
     let c : PokeGameWalletType = await Tezos.wallet.at(""+contract.address);
     try {
-      console.log("contractToPoke",contractToPoke);
+      console.log("contractToPoke",contractToPoke);c.storage()
       const op = await c.methods.pokeAndGetFeedback(contractToPoke as address).send();
       await op.confirmation();
       alert("Tx done");
@@ -441,10 +445,10 @@ function App() {
     //mint
     const mint = async (e :  React.MouseEvent<HTMLButtonElement>, contract : Contract) => {  
       e.preventDefault(); 
-      let c : WalletContract = await Tezos.wallet.at(""+contract.address);
+      let c : PokeGameWalletType = await Tezos.wallet.at(""+contract.address);
       try {
         console.log("contractToPoke",contractToPoke);
-        const op = await c.methods.init(userAddress,1).send();
+        const op = await c.methods.init(userAddress as address,new BigNumber(1) as nat).send();
         await op.confirmation();
         alert("Tx done");
       } catch (error : any) {
@@ -485,7 +489,7 @@ function App() {
     <table><thead><tr><th>address</th><th>trace "contract - feedback - user"</th><th>action</th></tr></thead><tbody>
     {contracts.map((contract) => <tr>
       <td style={{borderStyle: "dotted"}}>{contract.address}</td>
-      <td style={{borderStyle: "dotted"}}>{(contract.storage !== null && contract.storage.pokeTraces !== null && Object.entries(contract.storage.pokeTraces).length > 0)?Object.keys(contract.storage.pokeTraces).map((k : string)=>contract.storage.pokeTraces[k].receiver+" "+contract.storage.pokeTraces[k].feedback+" "+k+","):""}</td>
+      <td style={{borderStyle: "dotted"}}>{(contractStorages.get(contract.address!) !== undefined && (contractStorages.get(contract.address!)!.pokeTraces))?Array.from(contractStorages.get(contract.address!)!.pokeTraces.entries()).map( (e)=>e[1].receiver+" "+e[1].feedback+" "+e[0]+","):""}</td>
       <td style={{borderStyle: "dotted"}}><input type="text" onChange={e=>{console.log("e",e.currentTarget.value);setContractToPoke(e.currentTarget.value)}} placeholder='enter contract address here' />
                                           <button onClick={(e) =>poke(e,contract)}>Poke</button>
                                           <button onClick={(e)=>mint(e,contract)}>Mint 1 ticket</button></td>
