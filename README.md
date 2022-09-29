@@ -506,6 +506,8 @@ function App() {
   export default App;
 ```
 
+> Note : You have maybe noticed, but we use the full typed generated taquito classes for the storage access, now. It will improve maintenance in case you contract storage has changed.
+
 Refresh the page, now you have the Mint button
 
 Mint a ticket on this contract
