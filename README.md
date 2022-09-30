@@ -117,19 +117,16 @@ Add the new `Init` function (before main)
 
 ```typescript
 const init = ([a, ticketCount, pokeTraces  , feedback  , ticketOwnership] : [address, nat, map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
-    if(ticketCount == (0 as nat)){
-        return [  list([]) as list<operation>,{
+    return (ticketCount == (0 as nat))? [  list([]) as list<operation>,{
             feedback,
             pokeTraces,
             ticketOwnership 
-            }];
-    } else {
-        return [  list([]) as list<operation>,{
+            }]
+            : [  list([]) as list<operation>,{
             feedback,
             pokeTraces,
             ticketOwnership : Map.add(a,Tezos.create_ticket("can_poke", ticketCount),ticketOwnership) 
             }];
-    }
 };
 ```
 
