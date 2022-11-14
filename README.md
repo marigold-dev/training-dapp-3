@@ -4,13 +4,13 @@ tags: Training
 description: Training n°3 for decentralized application
 ---
 
-Training dapp n°3
-===
+# Training dapp n°3
 
-# :point_up:  Poke game with permissions
+# :point_up: Poke game with permissions
 
 Previously, you learned how to do inter-contract calls, use view and do unit testing.
 In this third session, you will enhance your skills on :
+
 - using tickets
 - don't mess up with `DUP` errors while manipulating tickets
 
@@ -43,11 +43,13 @@ Get your code from the session 2 or the solution [here](https://github.com/marig
 Tickets just came with Tezos Edo upgrade, they are great and often misundersood
 
 Ticket structure :
-- ticketer : (address) the creator contract address  
+
+- ticketer : (address) the creator contract address
 - value : (any) Can be any type from string to bytes. It holds whatever arbitrary values
 - amount : (nat) quantity of tickets minted
 
 Tickets features :
+
 - Not comparable : it makes no sense because tickets from same type are all equals and can be merged into a single ticket, for different types it is not comparable
 - Transferable : you can send ticket as Transaction parameter
 - Storable : only on smart contract storage for the moment (Note : a new protocol release will enable it for implicit account too)
@@ -57,6 +59,7 @@ Tickets features :
 - Mintable/burnable : this is the way to create and destroy tickets
 
 Example of usage :
+
 - AUTHN/AUTHZ token : give a ticket to a user from a allowed ticketer gives you AUTHN, add some claims on the ticket value and it gives you AUTHZ
 - Simplified FA1.2/FA2 token : you can represent crypto token with tickets (mint/burn/split/join)
 - Voting rights : give 1 ticket that count for 1 vote on each member
@@ -68,13 +71,13 @@ Example of usage :
 Minting is the action of creating ticket from void. In general, minting operations are done by administrators of smart contract or either by end user (while creating an NFT for example)
 
 Edit the `./contracts/pokeGame.jsligo` file and add a map of ticket ownership to the default `storage` type.
-This map will keep a list of consumable ticket for each authrozized user. It will be used as a burnable right to poke here 
+This map will keep a list of consumable ticket for each authrozized user. It will be used as a burnable right to poke here
 
 ```typescript
 export type storage = {
-    pokeTraces : map<address, pokeMessage>,
-    feedback : string,
-    ticketOwnership : map<address,ticket<string>>  //ticket of claims
+  pokeTraces: map<address, pokeMessage>;
+  feedback: string;
+  ticketOwnership: map<address, ticket<string>>; //ticket of claims
 };
 ```
 
@@ -86,10 +89,9 @@ A new entrypoint `Init` will add x tickets to a specific user
 
 ```typescript
 export type parameter =
-| ["Poke"]
-| ["PokeAndGetFeedback", address]
-| ["Init", address, nat]
-;
+  | ["Poke"]
+  | ["PokeAndGetFeedback", address]
+  | ["Init", address, nat];
 ```
 
 Main function will add this new entrypoint too.
@@ -101,32 +103,52 @@ To solve most of issues, we need to segregate ticket objects from the rest of th
 Here below, `store` object is destructured to isolate `ticketOwnership` object holding our tickets. You need then to modify the function arguments to pass each field of the storage separately
 
 ```typescript
-export const main = ([action, store] : [parameter, storage]) : return_ => {
-    //destructure the storage to avoid DUP
-    let {pokeTraces  , feedback  , ticketOwnership } = store;
-    return match (action, {
-        Poke: () => poke([pokeTraces  , feedback  , ticketOwnership]) ,
-        PokeAndGetFeedback: (other : address) => pokeAndGetFeedback([other,pokeTraces  , feedback  , ticketOwnership]),
-        Init: (initParam : [address, nat]) => init([initParam[0], initParam[1], pokeTraces  , feedback  , ticketOwnership])
-      } 
-    )
+export const main = ([action, store]: [parameter, storage]): return_ => {
+  //destructure the storage to avoid DUP
+  let { pokeTraces, feedback, ticketOwnership } = store;
+  return match(action, {
+    Poke: () => poke([pokeTraces, feedback, ticketOwnership]),
+    PokeAndGetFeedback: (other: address) =>
+      pokeAndGetFeedback([other, pokeTraces, feedback, ticketOwnership]),
+    Init: (initParam: [address, nat]) =>
+      init([initParam[0], initParam[1], pokeTraces, feedback, ticketOwnership]),
+  });
 };
 ```
 
 Add the new `Init` function (before main)
 
 ```typescript
-const init = ([a, ticketCount, pokeTraces  , feedback  , ticketOwnership] : [address, nat, map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
-    return (ticketCount == (0 as nat))? [  list([]) as list<operation>,{
-            feedback,
-            pokeTraces,
-            ticketOwnership 
-            }]
-            : [  list([]) as list<operation>,{
-            feedback,
-            pokeTraces,
-            ticketOwnership : Map.add(a,Tezos.create_ticket("can_poke", ticketCount),ticketOwnership) 
-            }];
+const init = ([a, ticketCount, pokeTraces, feedback, ticketOwnership]: [
+  address,
+  nat,
+  map<address, pokeMessage>,
+  string,
+  map<address, ticket<string>>
+]): return_ => {
+  if (ticketCount == (0 as nat)) {
+    return [
+      list([]) as list<operation>,
+      {
+        feedback,
+        pokeTraces,
+        ticketOwnership,
+      },
+    ];
+  } else {
+    return [
+      list([]) as list<operation>,
+      {
+        feedback,
+        pokeTraces,
+        ticketOwnership: Map.add(
+          a,
+          Tezos.create_ticket("can_poke", ticketCount),
+          ticketOwnership
+        ),
+      },
+    ];
+  }
 };
 ```
 
@@ -135,25 +157,41 @@ Init function looks at how many tickets to create from the current caller, then 
 Let's modify poke functions now
 
 ```typescript
-const poke = ([pokeTraces  , feedback  , ticketOwnership] : [map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
-    
-    //extract opt ticket from map
-    const [t , tom] : [option<ticket<string>>, map<address,ticket<string>>]  = Map.get_and_update(Tezos.get_source(), None() as option<ticket<string>>,ticketOwnership);
-    
-    return match(t, {
-        None : () => failwith("User does not have tickets => not allowed"),
-        Some : (_t : ticket<string>) => [  list([]) as list<operation>,{ //let t burn
+const poke = ([pokeTraces, feedback, ticketOwnership]: [
+  map<address, pokeMessage>,
+  string,
+  map<address, ticket<string>>
+]): return_ => {
+  //extract opt ticket from map
+  const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
+    Map.get_and_update(
+      Tezos.get_source(),
+      None() as option<ticket<string>>,
+      ticketOwnership
+    );
+
+  return match(t, {
+    None: () => failwith("User does not have tickets => not allowed"),
+    Some: (_t: ticket<string>) => [
+      list([]) as list<operation>,
+      {
+        //let t burn
         feedback,
-        pokeTraces : Map.add(Tezos.get_source(), {receiver : Tezos.get_self_address(), feedback : ""},pokeTraces),
-        ticketOwnership : tom 
-     }]
-    });
+        pokeTraces: Map.add(
+          Tezos.get_source(),
+          { receiver: Tezos.get_self_address(), feedback: "" },
+          pokeTraces
+        ),
+        ticketOwnership: tom,
+      },
+    ],
+  });
 };
 ```
 
 First, we need to extract an existing optional ticket from the map. If we try to do operation directly on the map, even trying to find or get this object in the structure, a DUP command can be generated. We use the secure `get_and_update` function from Map library to extract the item from the map and avoid any copy.
 
-> Note : more information about this function [here](https://ligolang.org/docs/reference/map-reference) 
+> Note : more information about this function [here](https://ligolang.org/docs/reference/map-reference)
 
 Second step, we can look at the optional ticket, if it exists, then we burn it (i.e we do not store it somewhere on the storage anymore) and add a trace of execution, otherwise we fail with an error message
 
@@ -161,29 +199,55 @@ Same for `pokeAndGetFeedback` function, do same checks and type modifications as
 
 ```typescript
 // @no_mutation
-const pokeAndGetFeedback = ([oracleAddress,pokeTraces  , _feedback  , ticketOwnership]:[address,map<address, pokeMessage>  , string  , map<address,ticket<string>>]) : return_ => {
-  
+const pokeAndGetFeedback = ([
+  oracleAddress,
+  pokeTraces,
+  _feedback,
+  ticketOwnership,
+]: [
+  address,
+  map<address, pokeMessage>,
+  string,
+  map<address, ticket<string>>
+]): return_ => {
   //extract opt ticket from map
-  const [t , tom] : [option<ticket<string>>, map<address,ticket<string>>]  = Map.get_and_update(Tezos.get_source(), None() as option<ticket<string>>,ticketOwnership);
-    
+  const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
+    Map.get_and_update(
+      Tezos.get_source(),
+      None() as option<ticket<string>>,
+      ticketOwnership
+    );
+
   //Read the feedback view
-  let feedbackOpt : option<string> = Tezos.call_view("feedback", unit, oracleAddress);
+  let feedbackOpt: option<string> = Tezos.call_view(
+    "feedback",
+    unit,
+    oracleAddress
+  );
 
   return match(t, {
-        None : () => failwith("User does not have tickets => not allowed"),
-        Some : (_t : ticket<string>) =>
-
-  match( feedbackOpt , {
-    Some : (feedback : string) => {
-        let feedbackMessage = {receiver : oracleAddress ,feedback: feedback};
-        return [  list([]) as list<operation>, { 
-          feedback,
-          pokeTraces : Map.add(Tezos.get_source(),feedbackMessage , pokeTraces),
-          ticketOwnership : tom 
-          }]; 
-        }, 
-    None : () => failwith("Cannot find view feedback on given oracle address")
-  })});
+    None: () => failwith("User does not have tickets => not allowed"),
+    Some: (_t: ticket<string>) =>
+      match(feedbackOpt, {
+        Some: (feedback: string) => {
+          let feedbackMessage = { receiver: oracleAddress, feedback: feedback };
+          return [
+            list([]) as list<operation>,
+            {
+              feedback,
+              pokeTraces: Map.add(
+                Tezos.get_source(),
+                feedbackMessage,
+                pokeTraces
+              ),
+              ticketOwnership: tom,
+            },
+          ];
+        },
+        None: () =>
+          failwith("Cannot find view feedback on given oracle address"),
+      }),
+  });
 };
 ```
 
@@ -196,7 +260,7 @@ const default_storage = {
     feedback : "kiss",
     ticketOwnership : Map.empty as map<address,ticket<string>>  //ticket of claims
 };
-```  
+```
 
 Compile the contract to check any errors
 
@@ -205,7 +269,7 @@ Compile the contract to check any errors
 ```bash
 yarn install
 
-taq compile pokeGame.jsligo 
+taq compile pokeGame.jsligo
 ```
 
 Check on logs that everything is fine :ok_hand:
@@ -215,13 +279,13 @@ Try to display a DUP error now :japanese_goblin:
 Add this line on poke function somewhere
 
 ```typescript
-  const t2 = Map.find_opt(Tezos.get_source(),ticketOwnership);  
+const t2 = Map.find_opt(Tezos.get_source(), ticketOwnership);
 ```
 
-Compile again 
+Compile again
 
 ```bash
-taq compile pokeGame.jsligo 
+taq compile pokeGame.jsligo
 ```
 
 This time you should see the `DUP error` generated by the find function
@@ -261,8 +325,8 @@ export const _testPoke = (main : main_fn, s : address, ticketCount : nat, expect
 
     //contract origination
     const [taddr, _, _] = Test.originate(main, {
-        pokeTraces : Map.empty as map<address, PokeGame.pokeMessage> , 
-        feedback : "kiss" , 
+        pokeTraces : Map.empty as map<address, PokeGame.pokeMessage> ,
+        feedback : "kiss" ,
         ticketOwnership : Map.empty as map<address,ticket<string>>},
         0 as tez);
     const contr = Test.to_contract(taddr);
@@ -282,31 +346,31 @@ export const _testPoke = (main : main_fn, s : address, ticketCount : nat, expect
 
     return match(status,{
         Fail : (tee : test_exec_error) => match(tee,{
-                                Other: (msg : string) => assert_with_error(expectedResult==false,msg), 
-                                Balance_too_low : (_record : [ address ,  tez , tez ]) => assert_with_error(expectedResult==false,"ERROR Balance_too_low"), 
+                                Other: (msg : string) => assert_with_error(expectedResult==false,msg),
+                                Balance_too_low : (_record : [ address ,  tez , tez ]) => assert_with_error(expectedResult==false,"ERROR Balance_too_low"),
                                 Rejected: (s:[michelson_program , address])=>assert_with_error(expectedResult==false,Test.to_string(s[0]))}),
         Success : (_n : nat) => match(Map.find_opt (s, (Test.get_storage(taddr) as PokeGame.storage).pokeTraces), {
                                 Some: (pokeMessage: PokeGame.pokeMessage) => { assert_with_error(pokeMessage.feedback == "","feedback "+pokeMessage.feedback+" is not equal to expected "+"(empty)"); assert_with_error(pokeMessage.receiver == contrAddress,"receiver is not equal");} ,
                                 None: () => assert_with_error(expectedResult==false,"don't find traces")
        })
     });
-      
+
   };
-  
- 
+
+
   //********** TESTS *************/
 
-  const _ = Test.log("*** Run test to pass ***"); 
+  const _ = Test.log("*** Run test to pass ***");
   const testSender1Poke = _testPoke([PokeGame.main,sender1, 1 as nat,true]);
 
-  const _ = Test.log("*** Run test to fail ***"); 
+  const _ = Test.log("*** Run test to fail ***");
   const testSender1PokeWithNoTicketsToFail = _testPoke([PokeGame.main,sender1, 0 as nat,false]) ;
 ```
 
 - On line 29, we initialize the smartcontract with some tickets
 - On line 39, we check if we have an error on the test (i.e user is ot allowed to poke)
 - On line 56, we test with the first user using a preexisting ticket
-- On line 59, we test with the same user again but with no ticket and we should have a catched error 
+- On line 59, we test with the same user again but with no ticket and we should have a catched error
 
 Run the test, and look at the logs to track execution
 
@@ -315,6 +379,7 @@ taq test unit_pokeGame.jsligo
 ```
 
 First test should be fine
+
 ```logs
 ┌──────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Contract             │ Test Results                                                                                                                                                   │
@@ -348,7 +413,7 @@ First test should be fine
 Let play with the CLI to compile and deploy
 
 ```bash
-taq compile pokeGame.jsligo 
+taq compile pokeGame.jsligo
 taq generate types ./app/src
 taq deploy pokeGame.tz -e testing
 ```
@@ -385,122 +450,191 @@ Ok, so let's authorize some :sparkler: minting on my user and try again to poke
 We add a new button for minting on a specific contract, replace the full content of `App.tsx` as it :
 
 ```typescript
-import { Contract, ContractsService } from '@dipdup/tzkt-api';
-import { TezosToolkit } from '@taquito/taquito';
+import { NetworkType } from "@airgap/beacon-types";
+import { Contract, ContractsService } from "@dipdup/tzkt-api";
+import { BeaconWallet } from "@taquito/beacon-wallet";
+import { TezosToolkit } from "@taquito/taquito";
 import { BigNumber } from "bignumber.js";
-import { useState } from 'react';
-import './App.css';
-import ConnectButton from './ConnectWallet';
-import DisconnectButton from './DisconnectWallet';
-import { PokeGameWalletType, Storage } from './pokeGame.types';
-import { address, nat } from './type-aliases';
+import { useEffect, useState } from "react";
+import "./App.css";
+import ConnectButton from "./ConnectWallet";
+import DisconnectButton from "./DisconnectWallet";
+import { PokeGameWalletType, Storage } from "./pokeGame.types";
+import { address, nat } from "./type-aliases";
 
 function App() {
-  
-  const [Tezos, setTezos] = useState<TezosToolkit>(new TezosToolkit("https://ghostnet.tezos.marigold.dev"));
-  const [wallet, setWallet] = useState<any>(null);
+  const [Tezos, setTezos] = useState<TezosToolkit>(
+    new TezosToolkit("https://ghostnet.tezos.marigold.dev")
+  );
+  const [wallet, setWallet] = useState<BeaconWallet>(
+    new BeaconWallet({
+      name: "Training",
+      preferredNetwork: NetworkType.GHOSTNET,
+    })
+  );
+
+  useEffect(() => {
+    Tezos.setWalletProvider(wallet);
+  }, [wallet]);
+
   const [userAddress, setUserAddress] = useState<string>("");
   const [userBalance, setUserBalance] = useState<number>(0);
 
   const [contractToPoke, setContractToPoke] = useState<string>("");
-  
+
   //tzkt
-  const contractsService = new ContractsService( {baseUrl: "https://api.ghostnet.tzkt.io" , version : "", withCredentials : false});
-  const [contracts, setContracts] = useState<Array<Contract>>([]);  
-  const [contractStorages, setContractStorages] = useState<Map<string,Storage>>(new Map());  
-  
-  
+  const contractsService = new ContractsService({
+    baseUrl: "https://api.ghostnet.tzkt.io",
+    version: "",
+    withCredentials: false,
+  });
+  const [contracts, setContracts] = useState<Array<Contract>>([]);
+  const [contractStorages, setContractStorages] = useState<
+    Map<string, Storage>
+  >(new Map());
+
   const fetchContracts = () => {
     (async () => {
-      const tzktcontracts : Array<Contract>=  await contractsService.getSimilar({address: process.env["REACT_APP_CONTRACT_ADDRESS"]!, includeStorage:true, sort:{desc:"id"}});
+      const tzktcontracts: Array<Contract> = await contractsService.getSimilar({
+        address: process.env["REACT_APP_CONTRACT_ADDRESS"]!,
+        includeStorage: true,
+        sort: { desc: "id" },
+      });
       setContracts(tzktcontracts);
-      const taquitoContracts : Array<PokeGameWalletType> = await Promise.all(tzktcontracts.map(async (tzktcontract) => await Tezos.wallet.at(tzktcontract.address!) as PokeGameWalletType));
-      const map = new Map<string,Storage>();   
-      for(const c of taquitoContracts){
-        const s : Storage =  await c.storage();
-        map.set(c.address,s);
+      const taquitoContracts: Array<PokeGameWalletType> = await Promise.all(
+        tzktcontracts.map(
+          async (tzktcontract) =>
+            (await Tezos.wallet.at(tzktcontract.address!)) as PokeGameWalletType
+        )
+      );
+      const map = new Map<string, Storage>();
+      for (const c of taquitoContracts) {
+        const s: Storage = await c.storage();
+        map.set(c.address, s);
       }
-      setContractStorages(map);      
+      setContractStorages(map);
     })();
-  }
-  
+  };
+
   //poke
-  const poke = async (e :  React.MouseEvent<HTMLButtonElement>, contract : Contract) => {  
-    e.preventDefault(); 
-    let c : PokeGameWalletType = await Tezos.wallet.at(""+contract.address);
+  const poke = async (
+    e: React.MouseEvent<HTMLButtonElement>,
+    contract: Contract
+  ) => {
+    e.preventDefault();
+    let c: PokeGameWalletType = await Tezos.wallet.at("" + contract.address);
     try {
-      console.log("contractToPoke",contractToPoke);c.storage()
-      const op = await c.methods.pokeAndGetFeedback(contractToPoke as address).send();
+      console.log("contractToPoke", contractToPoke);
+      c.storage();
+      const op = await c.methods
+        .pokeAndGetFeedback(contractToPoke as address)
+        .send();
       await op.confirmation();
       alert("Tx done");
-    } catch (error : any) {
+    } catch (error: any) {
       console.log(error);
       console.table(`Error: ${JSON.stringify(error, null, 2)}`);
     }
   };
 
-    //mint
-    const mint = async (e :  React.MouseEvent<HTMLButtonElement>, contract : Contract) => {  
-      e.preventDefault(); 
-      let c : PokeGameWalletType = await Tezos.wallet.at(""+contract.address);
-      try {
-        console.log("contractToPoke",contractToPoke);
-        const op = await c.methods.init(userAddress as address,new BigNumber(1) as nat).send();
-        await op.confirmation();
-        alert("Tx done");
-      } catch (error : any) {
-        console.log(error);
-        console.table(`Error: ${JSON.stringify(error, null, 2)}`);
-      }
-    };
-  
-  
+  //mint
+  const mint = async (
+    e: React.MouseEvent<HTMLButtonElement>,
+    contract: Contract
+  ) => {
+    e.preventDefault();
+    let c: PokeGameWalletType = await Tezos.wallet.at("" + contract.address);
+    try {
+      console.log("contractToPoke", contractToPoke);
+      const op = await c.methods
+        .init(userAddress as address, new BigNumber(1) as nat)
+        .send();
+      await op.confirmation();
+      alert("Tx done");
+    } catch (error: any) {
+      console.log(error);
+      console.table(`Error: ${JSON.stringify(error, null, 2)}`);
+    }
+  };
+
   return (
     <div className="App">
-    <header className="App-header">
-    
-    <ConnectButton
-    Tezos={Tezos}
-    setWallet={setWallet}
-    setUserAddress={setUserAddress}
-    setUserBalance={setUserBalance}
-    wallet={wallet}
-    />
-    
-    <DisconnectButton
-    wallet={wallet}
-    setUserAddress={setUserAddress}
-    setUserBalance={setUserBalance}
-    setWallet={setWallet}
-    />
+      <header className="App-header">
+        <ConnectButton
+          Tezos={Tezos}
+          setUserAddress={setUserAddress}
+          setUserBalance={setUserBalance}
+          wallet={wallet}
+        />
 
-    
-    <div>
-    I am {userAddress} with {userBalance} mutez
+        <DisconnectButton
+          wallet={wallet}
+          setUserAddress={setUserAddress}
+          setUserBalance={setUserBalance}
+        />
+
+        <div>
+          I am {userAddress} with {userBalance} mutez
+        </div>
+
+        <br />
+        <div>
+          <button onClick={fetchContracts}>Fetch contracts</button>
+          <table>
+            <thead>
+              <tr>
+                <th>address</th>
+                <th>trace "contract - feedback - user"</th>
+                <th>action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contracts.map((contract) => (
+                <tr>
+                  <td style={{ borderStyle: "dotted" }}>{contract.address}</td>
+                  <td style={{ borderStyle: "dotted" }}>
+                    {contractStorages.get(contract.address!) !== undefined &&
+                    contractStorages.get(contract.address!)!.pokeTraces
+                      ? Array.from(
+                          contractStorages
+                            .get(contract.address!)!
+                            .pokeTraces.entries()
+                        ).map(
+                          (e) =>
+                            e[1].receiver +
+                            " " +
+                            e[1].feedback +
+                            " " +
+                            e[0] +
+                            ","
+                        )
+                      : ""}
+                  </td>
+                  <td style={{ borderStyle: "dotted" }}>
+                    <input
+                      type="text"
+                      onChange={(e) => {
+                        console.log("e", e.currentTarget.value);
+                        setContractToPoke(e.currentTarget.value);
+                      }}
+                      placeholder="enter contract address here"
+                    />
+                    <button onClick={(e) => poke(e, contract)}>Poke</button>
+                    <button onClick={(e) => mint(e, contract)}>
+                      Mint 1 ticket
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </header>
     </div>
-    
-    
-    <br />
-    <div>
-    <button onClick={fetchContracts}>Fetch contracts</button>
-    <table><thead><tr><th>address</th><th>trace "contract - feedback - user"</th><th>action</th></tr></thead><tbody>
-    {contracts.map((contract) => <tr>
-      <td style={{borderStyle: "dotted"}}>{contract.address}</td>
-      <td style={{borderStyle: "dotted"}}>{(contractStorages.get(contract.address!) !== undefined && (contractStorages.get(contract.address!)!.pokeTraces))?Array.from(contractStorages.get(contract.address!)!.pokeTraces.entries()).map( (e)=>e[1].receiver+" "+e[1].feedback+" "+e[0]+","):""}</td>
-      <td style={{borderStyle: "dotted"}}><input type="text" onChange={e=>{console.log("e",e.currentTarget.value);setContractToPoke(e.currentTarget.value)}} placeholder='enter contract address here' />
-                                          <button onClick={(e) =>poke(e,contract)}>Poke</button>
-                                          <button onClick={(e)=>mint(e,contract)}>Mint 1 ticket</button></td>
-                              </tr>)}
-    </tbody></table>
-    </div>
-    
-    
-    </header>
-    </div>
-    );
-  }
-  
-  export default App;
+  );
+}
+
+export default App;
 ```
 
 > Note : You have maybe noticed, but we use the full typed generated taquito classes for the storage access, now. It will improve maintenance in case you contract storage has changed.
@@ -521,10 +655,11 @@ Wait for the Tx popup confirmation and try to poke again, you should be out of t
 
 :confetti_ball: Congratulation, you know how to use tickets now and avoid DUP errors
 
-> Takeaways : 
+> Takeaways :
+>
 > - you can go further and improve the code like consuming one 1 ticket quantity at a time and manage it the right way
 > - you can also implement different type of AUTHZ, not only `can poke` claim
-> - You can also try to base your ticket on some duration time like JSON token can do, not using the data field as a string but as bytes and store a timestamp on it.  
+> - You can also try to base your ticket on some duration time like JSON token can do, not using the data field as a string but as bytes and store a timestamp on it.
 
 # :palm_tree: Conclusion :sun_with_face:
 
