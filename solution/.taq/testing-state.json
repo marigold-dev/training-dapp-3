@@ -1,29 +1,45 @@
 {
     "operations": {},
     "tasks": {
-        "@taqueria/plugin-taquito.deploy.1668443475743": {
+        "@taqueria/plugin-taquito.deploy.1668588734874": {
             "task": "deploy",
             "plugin": "@taqueria/plugin-taquito",
-            "time": 1668443475743,
+            "time": 1668588734874,
             "output": [
                 {
                     "contract": "pokeGame.tz",
-                    "address": "KT1P3XkAGDWkQJfWyLwDBPJZ8cwyCC8hcmvR",
+                    "address": "KT1JSuVL6yrd2XSbdqghJCz48qmbdVZfy57K",
                     "alias": "pokeGame",
-                    "destination": "ghostnet"
+                    "balanceInMutez": "0",
+                    "destination": "https://ghostnet.ecadinfra.com"
                 }
             ]
         },
-        "@taqueria/plugin-taquito.deploy.1668444439177": {
+        "@taqueria/plugin-taquito.deploy.1668588876359": {
             "task": "deploy",
             "plugin": "@taqueria/plugin-taquito",
-            "time": 1668444439177,
+            "time": 1668588876359,
             "output": [
                 {
                     "contract": "pokeGame.tz",
-                    "address": "KT1SayUdqjJYnP6YnVMH1BQ32xqTsmcaKmuT",
+                    "address": "KT19jEAyrvsMzY6DQ42UsR6KF3duKHJMJyPZ",
                     "alias": "pokeGame",
-                    "destination": "ghostnet"
+                    "balanceInMutez": "0",
+                    "destination": "https://ghostnet.tezos.marigold.dev"
+                }
+            ]
+        },
+        "@taqueria/plugin-taquito.deploy.1668593832136": {
+            "task": "deploy",
+            "plugin": "@taqueria/plugin-taquito",
+            "time": 1668593832136,
+            "output": [
+                {
+                    "contract": "pokeGame.tz",
+                    "address": "KT1XvJDkHK4HaRFPj7GU4ammxu8t9gbiaDHg",
+                    "alias": "pokeGame",
+                    "balanceInMutez": "0",
+                    "destination": "https://ghostnet.tezos.marigold.dev"
                 }
             ]
         }

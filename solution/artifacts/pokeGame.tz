@@ -8,31 +8,41 @@
          SWAP ;
          UNPAIR ;
          UNPAIR ;
+         DIG 2 ;
          DIG 3 ;
          IF_LEFT
            { IF_LEFT
-               { UNPAIR ;
+               { SWAP ;
+                 DIG 2 ;
+                 DIG 3 ;
+                 PAIR ;
+                 DIG 2 ;
+                 UNPAIR ;
+                 DIG 2 ;
+                 UNPAIR ;
                  PUSH nat 0 ;
-                 DUP 3 ;
+                 DUP 5 ;
                  COMPARE ;
                  EQ ;
-                 IF { DROP 2 ; DIG 2 }
+                 IF { DIG 2 ; DIG 3 ; DROP 2 ; DIG 2 }
                     { DIG 4 ;
-                      DIG 2 ;
+                      DIG 4 ;
                       PUSH string "can_poke" ;
                       TICKET ;
-                      DIG 2 ;
+                      DIG 4 ;
                       SWAP ;
                       SOME ;
                       SWAP ;
                       UPDATE } ;
-                 DUG 2 ;
+                 SWAP ;
+                 DIG 2 ;
                  PAIR ;
                  PAIR ;
                  NIL operation ;
                  PAIR }
                { DROP ;
-                 DIG 2 ;
+                 SWAP ;
+                 DUG 2 ;
                  NONE (ticket string) ;
                  SOURCE ;
                  GET_AND_UPDATE ;
@@ -41,7 +51,7 @@
                      PUSH string "User does not have tickets => not allowed" ;
                      FAILWITH }
                    { DROP ;
-                     DIG 2 ;
+                     SWAP ;
                      SELF_ADDRESS ;
                      PUSH string "" ;
                      PAIR ;
@@ -56,8 +66,8 @@
                      NIL operation ;
                      PAIR } } }
            { SWAP ;
-             DROP ;
              DIG 2 ;
+             DROP ;
              NONE (ticket string) ;
              SOURCE ;
              GET_AND_UPDATE ;
@@ -74,11 +84,12 @@
                    { DROP 3 ;
                      PUSH string "Cannot find view feedback on given oracle address" ;
                      FAILWITH }
-                   { SWAP ;
-                     DIG 3 ;
-                     DIG 3 ;
-                     DUP 4 ;
+                   { DIG 2 ;
+                     DUP 2 ;
                      PAIR ;
+                     DIG 2 ;
+                     DIG 3 ;
+                     DIG 2 ;
                      SOURCE ;
                      SWAP ;
                      SOME ;

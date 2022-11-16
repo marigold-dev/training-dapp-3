@@ -73,11 +73,11 @@ Minting is the action of creating ticket from void. In general, minting operatio
 Edit the `./contracts/pokeGame.jsligo` file and add a map of ticket ownership to the default `storage` type.
 This map will keep a list of consumable ticket for each authrozized user. It will be used as a burnable right to poke here
 
-```typescript
+```jsligo
 export type storage = {
-  pokeTraces: map<address, pokeMessage>;
-  feedback: string;
-  ticketOwnership: map<address, ticket<string>>; //ticket of claims
+  pokeTraces: map<address, pokeMessage>,
+  feedback: string,
+  ticketOwnership: map<address, ticket<string>> //ticket of claims
 };
 ```
 
@@ -87,7 +87,7 @@ A new entrypoint `Init` will add x tickets to a specific user
 
 > Note : to simplify, we don't add security around this entrypoint, but in Production we should do it
 
-```typescript
+```jsligo
 export type parameter =
   | ["Poke"]
   | ["PokeAndGetFeedback", address]
@@ -102,7 +102,7 @@ To solve most of issues, we need to segregate ticket objects from the rest of th
 
 Here below, `store` object is destructured to isolate `ticketOwnership` object holding our tickets. You need then to modify the function arguments to pass each field of the storage separately
 
-```typescript
+```jsligo
 export const main = ([action, store]: [parameter, storage]): return_ => {
   //destructure the storage to avoid DUP
   let { pokeTraces, feedback, ticketOwnership } = store;
@@ -118,7 +118,7 @@ export const main = ([action, store]: [parameter, storage]): return_ => {
 
 Add the new `Init` function (before main)
 
-```typescript
+```jsligo
 const init = ([a, ticketCount, pokeTraces, feedback, ticketOwnership]: [
   address,
   nat,
@@ -133,9 +133,10 @@ const init = ([a, ticketCount, pokeTraces, feedback, ticketOwnership]: [
         feedback,
         pokeTraces,
         ticketOwnership,
-      },
-    ];
+      }
+    ]
   } else {
+    const ticketOpt = Tezos.create_ticket("can_poke", ticketCount);
     return [
       list([]) as list<operation>,
       {
@@ -143,11 +144,14 @@ const init = ([a, ticketCount, pokeTraces, feedback, ticketOwnership]: [
         pokeTraces,
         ticketOwnership: Map.add(
           a,
-          Tezos.create_ticket("can_poke", ticketCount),
+          match(ticketOpt,{
+            Some : (t : ticket<string>) => t,
+            None : () => failwith("Fail to create a ticket")
+          }),
           ticketOwnership
         ),
-      },
-    ];
+      }
+    ]
   }
 };
 ```
@@ -156,7 +160,7 @@ Init function looks at how many tickets to create from the current caller, then 
 
 Let's modify poke functions now
 
-```typescript
+```jsligo
 const poke = ([pokeTraces, feedback, ticketOwnership]: [
   map<address, pokeMessage>,
   string,
@@ -183,8 +187,8 @@ const poke = ([pokeTraces, feedback, ticketOwnership]: [
           pokeTraces
         ),
         ticketOwnership: tom,
-      },
-    ],
+      }
+    ]
   });
 };
 ```
@@ -197,13 +201,13 @@ Second step, we can look at the optional ticket, if it exists, then we burn it (
 
 Same for `pokeAndGetFeedback` function, do same checks and type modifications as below
 
-```typescript
+```jsligo
 // @no_mutation
 const pokeAndGetFeedback = ([
   oracleAddress,
   pokeTraces,
   _feedback,
-  ticketOwnership,
+  ticketOwnership
 ]: [
   address,
   map<address, pokeMessage>,
@@ -241,8 +245,8 @@ const pokeAndGetFeedback = ([
                 pokeTraces
               ),
               ticketOwnership: tom,
-            },
-          ];
+            }
+          ]
         },
         None: () =>
           failwith("Cannot find view feedback on given oracle address"),
@@ -253,7 +257,7 @@ const pokeAndGetFeedback = ([
 
 Update the storage initialization on `pokeGame.storages.jsligo`
 
-```typescript
+```jsligo
 #include "pokeGame.jsligo"
 const default_storage = {
     pokeTraces : Map.empty as map<address, pokeMessage>,
@@ -278,7 +282,7 @@ Try to display a DUP error now :japanese_goblin:
 
 Add this line on poke function somewhere
 
-```typescript
+```jsligo
 const t2 = Map.find_opt(Tezos.get_source(), ticketOwnership);
 ```
 
@@ -305,7 +309,7 @@ Update the unit tests files to see if we can still poke
 
 Edit `./contracts/unit_pokeGame.jsligo`
 
-```typescript
+```jsligo
 #import "./pokeGame.jsligo" "PokeGame"
 
 export type main_fn = (parameter : PokeGame.parameter, storage : PokeGame.storage) => PokeGame.return_ ;
