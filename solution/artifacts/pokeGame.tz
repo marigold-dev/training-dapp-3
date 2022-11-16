@@ -25,10 +25,11 @@
                  COMPARE ;
                  EQ ;
                  IF { DIG 2 ; DIG 3 ; DROP 2 ; DIG 2 }
-                    { DIG 4 ;
-                      DIG 4 ;
+                    { DIG 3 ;
                       PUSH string "can_poke" ;
                       TICKET ;
+                      DIG 4 ;
+                      SWAP ;
                       DIG 4 ;
                       SWAP ;
                       SOME ;

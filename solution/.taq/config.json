@@ -93,7 +93,7 @@
             "sandboxes": [],
             "aliases": {
                 "pokeGame": {
-                    "address": "KT1XvJDkHK4HaRFPj7GU4ammxu8t9gbiaDHg"
+                    "address": "KT1TFV55RYD5hqHLYiHouJoWBL1tQfSvf54a"
                 }
             }
         }
@@ -127,7 +127,7 @@
             "type": "npm"
         }
     ],
-    "projectDir": "/home/zamrokk/training-dapp-2/solution",
-    "configFile": "/home/zamrokk/training-dapp-2/solution/.taq/config.json",
-    "hash": "b6d1e2cdadbef79bc9f631909f77e33023693b83c9c4c28898f725fa78518573"
+    "projectDir": "/home/zamrokk/training-dapp-3/solution",
+    "configFile": "/home/zamrokk/training-dapp-3/solution/.taq/config.json",
+    "hash": "333126d4ea1f975b4918250f5cc26b45e06a2c27b4311167b5ffbc0f8a5e8f9a"
 }

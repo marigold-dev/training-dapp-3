@@ -136,7 +136,7 @@ const init = ([a, ticketCount, pokeTraces, feedback, ticketOwnership]: [
       }
     ]
   } else {
-    const ticketOpt = Tezos.create_ticket("can_poke", ticketCount);
+    const t : ticket<string> = Tezos.create_ticket("can_poke", ticketCount);
     return [
       list([]) as list<operation>,
       {
@@ -144,10 +144,7 @@ const init = ([a, ticketCount, pokeTraces, feedback, ticketOwnership]: [
         pokeTraces,
         ticketOwnership: Map.add(
           a,
-          match(ticketOpt,{
-            Some : (t : ticket<string>) => t,
-            None : () => failwith("Fail to create a ticket")
-          }),
+          t,
           ticketOwnership
         ),
       }
@@ -423,14 +420,12 @@ taq deploy pokeGame.tz -e testing
 ```
 
 ```logs
-┌─────────────┬──────────────────────────────────────┬──────────┬─────────────┐
-│ Contract    │ Address                              │ Alias    │ Destination │
-├─────────────┼──────────────────────────────────────┼──────────┼─────────────┤
-│ pokeGame.tz │ KT1DG2TY9cWK3i7D321rxjLeHJCLqSRFvhTf │ pokeGame │ ghostnet    │
-└─────────────┴──────────────────────────────────────┴──────────┴─────────────┘
+┌─────────────┬──────────────────────────────────────┬──────────┬──────────────────┬─────────────────────────────────────┐
+│ Contract    │ Address                              │ Alias    │ Balance In Mutez │ Destination                         │
+├─────────────┼──────────────────────────────────────┼──────────┼──────────────────┼─────────────────────────────────────┤
+│ pokeGame.tz │ KT1TFV55RYD5hqHLYiHouJoWBL1tQfSvf54a │ pokeGame │ 0                │ https://ghostnet.tezos.marigold.dev │
+└─────────────┴──────────────────────────────────────┴──────────┴──────────────────┴─────────────────────────────────────┘
 ```
-
-> :warning: Note : we will need to use `Storage` type on the frontend side, by default, taquito does not export it. Export the type on the file `pokeGame.types.ts` adding a keywork `export` as it : `export type Storage = { ...`
 
 ## Step 4 : Adapt the frontend code
 
@@ -479,6 +474,14 @@ function App() {
 
   useEffect(() => {
     Tezos.setWalletProvider(wallet);
+    (async () => {
+      const activeAccount = await wallet.client.getActiveAccount();
+      if (activeAccount) {
+        setUserAddress(activeAccount.address);
+        const balance = await Tezos.tz.getBalance(activeAccount.address);
+        setUserBalance(balance.toNumber());
+      }
+    })();
   }, [wallet]);
 
   const [userAddress, setUserAddress] = useState<string>("");
