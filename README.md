@@ -73,7 +73,7 @@ Minting is the action of creating ticket from void. In general, minting operatio
 Edit the `./contracts/pokeGame.jsligo` file and add a map of ticket ownership to the default `storage` type.
 This map will keep a list of consumable ticket for each authrozized user. It will be used as a burnable right to poke here
 
-```jsligo
+```ligolang
 export type storage = {
   pokeTraces: map<address, pokeMessage>,
   feedback: string,
@@ -87,7 +87,7 @@ A new entrypoint `Init` will add x tickets to a specific user
 
 > Note : to simplify, we don't add security around this entrypoint, but in Production we should do it
 
-```jsligo
+```ligolang
 export type parameter =
   | ["Poke"]
   | ["PokeAndGetFeedback", address]
@@ -102,7 +102,7 @@ To solve most of issues, we need to segregate ticket objects from the rest of th
 
 Here below, `store` object is destructured to isolate `ticketOwnership` object holding our tickets. You need then to modify the function arguments to pass each field of the storage separately
 
-```jsligo
+```ligolang
 export const main = ([action, store]: [parameter, storage]): return_ => {
   //destructure the storage to avoid DUP
   let { pokeTraces, feedback, ticketOwnership } = store;
@@ -118,7 +118,7 @@ export const main = ([action, store]: [parameter, storage]): return_ => {
 
 Add the new `Init` function (before main)
 
-```jsligo
+```ligolang
 const init = ([a, ticketCount, pokeTraces, feedback, ticketOwnership]: [
   address,
   nat,
@@ -157,7 +157,7 @@ Init function looks at how many tickets to create from the current caller, then 
 
 Let's modify poke functions now
 
-```jsligo
+```ligolang
 const poke = ([pokeTraces, feedback, ticketOwnership]: [
   map<address, pokeMessage>,
   string,
@@ -198,7 +198,7 @@ Second step, we can look at the optional ticket, if it exists, then we burn it (
 
 Same for `pokeAndGetFeedback` function, do same checks and type modifications as below
 
-```jsligo
+```ligolang
 // @no_mutation
 const pokeAndGetFeedback = ([
   oracleAddress,
@@ -254,7 +254,7 @@ const pokeAndGetFeedback = ([
 
 Update the storage initialization on `pokeGame.storages.jsligo`
 
-```jsligo
+```ligolang
 #include "pokeGame.jsligo"
 const default_storage = {
     pokeTraces : Map.empty as map<address, pokeMessage>,
@@ -279,7 +279,7 @@ Try to display a DUP error now :japanese_goblin:
 
 Add this line on poke function somewhere
 
-```jsligo
+```ligolang
 const t2 = Map.find_opt(Tezos.get_source(), ticketOwnership);
 ```
 
@@ -306,7 +306,7 @@ Update the unit tests files to see if we can still poke
 
 Edit `./contracts/unit_pokeGame.jsligo`
 
-```jsligo
+```ligolang
 #import "./pokeGame.jsligo" "PokeGame"
 
 export type main_fn = (parameter : PokeGame.parameter, storage : PokeGame.storage) => PokeGame.return_ ;
