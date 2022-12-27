@@ -439,11 +439,11 @@ yarn run start
 
 Connect with any wallet that has enough Tez, and Poke your own contract
 
-![pokefail](/doc/pokefail.png)
+![pokefail](./doc/pokefail.png)
 
 My Kukai wallet is giving me back the error from the smart contract
 
-![kukaifail](/doc/kukaifail.png)
+![kukaifail](./doc/kukaifail.png)
 
 Ok, so let's authorize some :sparkler: minting on my user and try again to poke
 
@@ -651,15 +651,15 @@ Refresh the page, now you have the Mint button
 
 Mint a ticket on this contract
 
-![mint](/doc/mint.png)
+![mint](./doc/mint.png)
 
 Wait for the Tx popup confirmation and then try to poke again, it should succeed now
 
-![success](/doc/success.png)
+![success](./doc/success.png)
 
 Wait for the Tx popup confirmation and try to poke again, you should be out of tickets and it should fail
 
-![kukaifail](/doc/kukaifail.png)
+![kukaifail](./doc/kukaifail.png)
 
 :confetti_ball: Congratulation, you know how to use tickets now and avoid DUP errors
 
