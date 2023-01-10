@@ -5,6 +5,7 @@ description: Training n°3 for decentralized application
 ---
 
 ## :round_pushpin: [See Github version and full code here](https://github.com/marigold-dev/training-dapp-3)
+
 # Training dapp n°3
 
 # :point_up: Poke game with permissions
@@ -675,4 +676,6 @@ Now, you are able to understand ticket. If you want to learn more about tickets,
 
 On next training, we will learn hot to upgrade deployed contracts
 
-[:arrow_right: NEXT](https://github.com/marigold-dev/training-dapp-4)
+[:arrow_right: NEXT (HTML version)](https://marigold-dev.github.io/training-dapp-4)
+
+[:arrow_right: NEXT (Github version)](https://github.com/marigold-dev/training-dapp-4)
