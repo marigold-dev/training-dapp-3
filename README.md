@@ -83,73 +83,33 @@ export type storage = {
 };
 ```
 
-In order to fill this map, we are adding an new administration endpoint. Modify the `parameter` type, update the `main` function and add the new function `init`
-
-A new entrypoint `Init` will add x tickets to a specific user
+In order to fill this map, we are adding an new administration endpoint. A new entrypoint `Init` will add x tickets to a specific user
 
 > Note : to simplify, we don't add security around this entrypoint, but in Production we should do it
-
-```ligolang
-export type parameter =
-  | ["Poke"]
-  | ["PokeAndGetFeedback", address]
-  | ["Init", address, nat];
-```
-
-Main function will add this new entrypoint too.
 
 Tickets are very special objects that cannot be **DUPLICATED**. During compilation to Michelson, using a variable twice, copying a structure holding tickets are generating `DUP` command. To avoid our contract to fail at runtime, Ligo will parse statically our code during compilation time to detect any DUP on tickets.
 
 To solve most of issues, we need to segregate ticket objects from the rest of the storage, or structures containing ticket objects in order to avoid compilation errors. To do this, just destructure any object until you get tickets isolated.
 
-Here below, `store` object is destructured to isolate `ticketOwnership` object holding our tickets. You need then to modify the function arguments to pass each field of the storage separately
+For each function having the storage as parameter, `store` object need to be destructured to isolate `ticketOwnership` object holding our tickets. then don't use anymore the `store` object or you will create a **DUP** error.
+
+Add the new `Init` function
 
 ```ligolang
-export const main = ([action, store]: [parameter, storage]): return_ => {
-  //destructure the storage to avoid DUP
-  let { pokeTraces, feedback, ticketOwnership } = store;
-  return match(action, {
-    Poke: () => poke([pokeTraces, feedback, ticketOwnership]),
-    PokeAndGetFeedback: (other: address) =>
-      pokeAndGetFeedback([other, pokeTraces, feedback, ticketOwnership]),
-    Init: (initParam: [address, nat]) =>
-      init([initParam[0], initParam[1], pokeTraces, feedback, ticketOwnership]),
-  });
-};
-```
-
-Add the new `Init` function (before main)
-
-```ligolang
-const init = ([a, ticketCount, pokeTraces, feedback, ticketOwnership]: [
-  address,
-  nat,
-  map<address, pokeMessage>,
-  string,
-  map<address, ticket<string>>
-]): return_ => {
+/* @entry */
+const init = ([a, ticketCount]: [address, nat], store: storage): return_ => {
+  const { pokeTraces, feedback, ticketOwnership } = store;
   if (ticketCount == (0 as nat)) {
     return [
       list([]) as list<operation>,
-      {
-        feedback,
-        pokeTraces,
-        ticketOwnership,
-      }
+      { pokeTraces, feedback, ticketOwnership }
     ]
   } else {
-    const t : ticket<string> = Tezos.create_ticket("can_poke", ticketCount);
+    const t: ticket<string> =
+      Option.unopt(Tezos.create_ticket("can_poke", ticketCount));
     return [
       list([]) as list<operation>,
-      {
-        feedback,
-        pokeTraces,
-        ticketOwnership: Map.add(
-          a,
-          t,
-          ticketOwnership
-        ),
-      }
+      { pokeTraces, feedback, ticketOwnership: Map.add(a, t, ticketOwnership) }
     ]
   }
 };
@@ -160,35 +120,34 @@ Init function looks at how many tickets to create from the current caller, then 
 Let's modify poke functions now
 
 ```ligolang
-const poke = ([pokeTraces, feedback, ticketOwnership]: [
-  map<address, pokeMessage>,
-  string,
-  map<address, ticket<string>>
-]): return_ => {
-  //extract opt ticket from map
+/* @entry */
+const poke = (_: parameter, store: storage): return_ => {
+  const { pokeTraces, feedback, ticketOwnership } = store;
   const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
     Map.get_and_update(
       Tezos.get_source(),
       None() as option<ticket<string>>,
       ticketOwnership
     );
-
-  return match(t, {
-    None: () => failwith("User does not have tickets => not allowed"),
-    Some: (_t: ticket<string>) => [
-      list([]) as list<operation>,
-      {
-        //let t burn
-        feedback,
-        pokeTraces: Map.add(
-          Tezos.get_source(),
-          { receiver: Tezos.get_self_address(), feedback: "" },
-          pokeTraces
-        ),
-        ticketOwnership: tom,
-      }
-    ]
-  });
+  return match(
+    t,
+    {
+      None: () => failwith("User does not have tickets => not allowed"),
+      Some: (_t: ticket<string>) =>
+        [
+          list([]) as list<operation>,
+          {
+            feedback,
+            pokeTraces: Map.add(
+              Tezos.get_source(),
+              { receiver: Tezos.get_self_address(), feedback: "" },
+              pokeTraces
+            ),
+            ticketOwnership: tom
+          }
+        ]
+    }
+  )
 };
 ```
 
@@ -201,56 +160,48 @@ Second step, we can look at the optional ticket, if it exists, then we burn it (
 Same for `pokeAndGetFeedback` function, do same checks and type modifications as below
 
 ```ligolang
-// @no_mutation
-const pokeAndGetFeedback = ([
-  oracleAddress,
-  pokeTraces,
-  _feedback,
-  ticketOwnership
-]: [
-  address,
-  map<address, pokeMessage>,
-  string,
-  map<address, ticket<string>>
-]): return_ => {
-  //extract opt ticket from map
+/* @no_mutation */
+/* @entry */
+const pokeAndGetFeedback = (oracleAddress: address, store: storage): return_ => {
+  const { pokeTraces, feedback, ticketOwnership } = store;
   const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
     Map.get_and_update(
       Tezos.get_source(),
       None() as option<ticket<string>>,
       ticketOwnership
     );
-
-  //Read the feedback view
-  let feedbackOpt: option<string> = Tezos.call_view(
-    "feedback",
-    unit,
-    oracleAddress
-  );
-
-  return match(t, {
-    None: () => failwith("User does not have tickets => not allowed"),
-    Some: (_t: ticket<string>) =>
-      match(feedbackOpt, {
-        Some: (feedback: string) => {
-          let feedbackMessage = { receiver: oracleAddress, feedback: feedback };
-          return [
-            list([]) as list<operation>,
-            {
-              feedback,
-              pokeTraces: Map.add(
-                Tezos.get_source(),
-                feedbackMessage,
-                pokeTraces
-              ),
-              ticketOwnership: tom,
-            }
-          ]
-        },
-        None: () =>
-          failwith("Cannot find view feedback on given oracle address"),
-      }),
-  });
+  let feedbackOpt: option<string> =
+    Tezos.call_view("feedback", unit, oracleAddress);
+  return match(
+    t,
+    {
+      None: () => failwith("User does not have tickets => not allowed"),
+      Some: (_t: ticket<string>) =>
+        match(
+          feedbackOpt,
+          {
+            Some: (feedback: string) => {
+              let feedbackMessage =
+                { receiver: oracleAddress, feedback: feedback };
+              return [
+                list([]) as list<operation>,
+                {
+                  feedback,
+                  pokeTraces: Map.add(
+                    Tezos.get_source(),
+                    feedbackMessage,
+                    pokeTraces
+                  ),
+                  ticketOwnership: tom
+                }
+              ]
+            },
+            None: () =>
+              failwith("Cannot find view feedback on given oracle address")
+          }
+        )
+    }
+  )
 };
 ```
 
@@ -267,10 +218,10 @@ const default_storage = {
 
 Compile the contract to check any errors
 
-> Note : don't forget to check that Docker is running
+> Note : don't forget to check that Docker is running for taqueria
 
 ```bash
-yarn install
+npm i
 
 taq compile pokeGame.jsligo
 ```
@@ -279,7 +230,7 @@ Check on logs that everything is fine :ok_hand:
 
 Try to display a DUP error now :japanese_goblin:
 
-Add this line on poke function somewhere
+Add this line on poke function after the first line of storage destructuration
 
 ```ligolang
 const t2 = Map.find_opt(Tezos.get_source(), ticketOwnership);
@@ -288,16 +239,13 @@ const t2 = Map.find_opt(Tezos.get_source(), ticketOwnership);
 Compile again
 
 ```bash
-taq compile pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:0.65.0 taq compile pokeGame.jsligo
 ```
 
-This time you should see the `DUP error` generated by the find function
+This time you should see the `DUP` warning generated by the find function
 
 ```logs
-At line 87 characters 17 to 22,
-type map address (ticket string) cannot be used here because it is not duplicable. Only duplicable types can be used with the DUP instruction and as view inputs and outputs.
-At line 87 characters 17 to 22,
-Ticket in unauthorized position (type error).
+Warning: variable "ticketOwnership" cannot be used more than once.
 ```
 
 Ok so remove it !!! :negative_squared_cross_mark:
@@ -310,105 +258,167 @@ Edit `./contracts/unit_pokeGame.jsligo`
 
 ```ligolang
 #import "./pokeGame.jsligo" "PokeGame"
+export type main_fn = module_contract<parameter_of PokeGame, PokeGame.storage>;
 
-export type main_fn = (parameter : PokeGame.parameter, storage : PokeGame.storage) => PokeGame.return_ ;
+const _ = Test.reset_state(2 as nat, list([]) as list<tez>);
 
-// reset state
-const _ = Test.reset_state ( 2 as nat, list([]) as list <tez> );
 const faucet = Test.nth_bootstrap_account(0);
-const sender1 : address = Test.nth_bootstrap_account(1);
+
+const sender1: address = Test.nth_bootstrap_account(1);
+
 const _ = Test.log("Sender 1 has balance : ");
+
 const _ = Test.log(Test.get_balance(sender1));
 
 const _ = Test.set_baker(faucet);
+
 const _ = Test.set_source(faucet);
 
-//functions
-export const _testPoke = (main : main_fn, s : address, ticketCount : nat, expectedResult : bool) : unit => {
+const initial_storage =
+{
+pokeTraces : Map.empty as map<address, PokeGame.pokeMessage> ,
+feedback : "kiss" ,
+ticketOwnership : Map.empty as map<address,ticket<string>>};
 
-    //contract origination
-    const [taddr, _, _] = Test.originate(main, {
-        pokeTraces : Map.empty as map<address, PokeGame.pokeMessage> ,
-        feedback : "kiss" ,
-        ticketOwnership : Map.empty as map<address,ticket<string>>},
-        0 as tez);
-    const contr = Test.to_contract(taddr);
-    const contrAddress = Tezos.address(contr);
-    const _ = Test.log("contract deployed with values : ");
-    const _ = Test.log(contr);
+const initial_tez = 0 as tez;
 
-    const statusInit = Test.transfer_to_contract(contr, Init([sender1,ticketCount]), 0 as tez);
-    const _ = Test.log(statusInit);
-    const _ = Test.log("*** Check initial ticket is here ***");
-    const _ = Test.log(Test.get_storage(taddr));
+export const _testPoke = (
+  taddr: typed_address<parameter_of PokeGame, PokeGame.storage>,
+  s: address,
+  ticketCount: nat,
+  expectedResult: bool
+): unit => {
+  const contr = Test.to_contract(taddr);
+  const contrAddress = Tezos.address(contr);
+  Test.log("contract deployed with values : ");
+  Test.log(contr);
+  Test.set_source(s);
+  const statusInit =
+    Test.transfer_to_contract(contr, Init([sender1, ticketCount]), 0 as tez);
+  Test.log(statusInit);
+  Test.log("*** Check initial ticket is here ***");
+  Test.log(Test.get_storage(taddr));
+  const status: test_exec_result =
+    Test.transfer_to_contract(contr, Poke(), 0 as tez);
+  Test.log(status);
+  const store: PokeGame.storage = Test.get_storage(taddr);
+  Test.log(store);
+  return match(
+    status,
+    {
+      Fail: (tee: test_exec_error) =>
+        match(
+          tee,
+          {
+            Other: (msg: string) =>
+              assert_with_error(expectedResult == false, msg),
+            Balance_too_low: (_record: test_exec_error_balance_too_low) =>
+              assert_with_error(
+                expectedResult == false,
+                "ERROR Balance_too_low"
+              ),
+            Rejected: (s: [michelson_program, address]) =>
+              assert_with_error(expectedResult == false, Test.to_string(s[0]))
+          }
+        ),
+      Success: (_n: nat) =>
+        match(
+          Map.find_opt(
+            s,
+            (Test.get_storage(taddr) as PokeGame.storage).pokeTraces
+          ),
+          {
+            Some: (pokeMessage: PokeGame.pokeMessage) => {
+              assert_with_error(
+                pokeMessage.feedback == "",
+                "feedback " + pokeMessage.feedback +
+                  " is not equal to expected " + "(empty)"
+              );
+              assert_with_error(
+                pokeMessage.receiver == contrAddress,
+                "receiver is not equal"
+              )
+            },
+            None: () =>
+              assert_with_error(expectedResult == false, "don't find traces")
+          }
+        )
+    }
+  )
+};
 
-    Test.set_source(s);
+const _ = Test.log("*** Run test to pass ***");
 
-    const status = Test.transfer_to_contract(contr, Poke() as PokeGame.parameter, 0 as tez);
-    Test.log(status);
+const testSender1Poke =
+  (
+    (): unit => {
+      const [taddr, _, _] =
+        Test.originate_module(
+          contract_of(PokeGame),
+          initial_storage,
+          initial_tez
+        );
+      _testPoke(taddr, sender1, 1 as nat, true)
+    }
+  )();
 
-    return match(status,{
-        Fail : (tee : test_exec_error) => match(tee,{
-                                Other: (msg : string) => assert_with_error(expectedResult==false,msg),
-                                Balance_too_low : (_record : [ address ,  tez , tez ]) => assert_with_error(expectedResult==false,"ERROR Balance_too_low"),
-                                Rejected: (s:[michelson_program , address])=>assert_with_error(expectedResult==false,Test.to_string(s[0]))}),
-        Success : (_n : nat) => match(Map.find_opt (s, (Test.get_storage(taddr) as PokeGame.storage).pokeTraces), {
-                                Some: (pokeMessage: PokeGame.pokeMessage) => { assert_with_error(pokeMessage.feedback == "","feedback "+pokeMessage.feedback+" is not equal to expected "+"(empty)"); assert_with_error(pokeMessage.receiver == contrAddress,"receiver is not equal");} ,
-                                None: () => assert_with_error(expectedResult==false,"don't find traces")
-       })
-    });
+const _ = Test.log("*** Run test to fail ***");
 
-  };
-
-
-  //********** TESTS *************/
-
-  const _ = Test.log("*** Run test to pass ***");
-  const testSender1Poke = _testPoke([PokeGame.main,sender1, 1 as nat,true]);
-
-  const _ = Test.log("*** Run test to fail ***");
-  const testSender1PokeWithNoTicketsToFail = _testPoke([PokeGame.main,sender1, 0 as nat,false]) ;
+const testSender1PokeWithNoTicketsToFail =
+  (
+    (): unit => {
+      const [taddr, _, _] =
+        Test.originate_module(
+          contract_of(PokeGame),
+          initial_storage,
+          initial_tez
+        );
+      _testPoke(taddr, sender1, 0 as nat, false)
+    }
+  )();
 ```
 
-- On line 29, we initialize the smartcontract with some tickets
-- On line 39, we check if we have an error on the test (i.e user is ot allowed to poke)
-- On line 56, we test with the first user using a preexisting ticket
-- On line 59, we test with the same user again but with no ticket and we should have a catched error
+- On `Init([sender1, ticketCount])`, we initialize the smartcontract with some tickets
+- On `Fail`, we check if we have an error on the test (i.e user is allowed to poke)
+- On `testSender1Poke`, we test with the first user using a preexisting ticket
+- On `testSender1PokeWithNoTicketsToFail`, we test with the same user again but with no ticket and we should have a catched error
 
 Run the test, and look at the logs to track execution
 
 ```bash
-taq test unit_pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:0.65.0 taq test unit_pokeGame.jsligo
 ```
 
 First test should be fine
 
 ```logs
-┌──────────────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Contract             │ Test Results                                                                                                                                                   │
-├──────────────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-│ unit_pokeGame.jsligo │ "Sender 1 has balance : "                                                                                                                                      │
-│                      │ 3800000000000mutez                                                                                                                                             │
-│                      │ "*** Run test to pass ***"                                                                                                                                     │
-│                      │ "contract deployed with values : "                                                                                                                             │
-│                      │ KT1JVH7KyY4RVWgLRdX43WJojBRzMABN8eJu(None)                                                                                                                     │
-│                      │ Success (2674n)                                                                                                                                                │
-│                      │ "*** Check initial ticket is here ***"                                                                                                                         │
-│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = [tz1TDZG4vFoA2xutZMYauUnS4HVucnAGQSpZ -> (KT1JVH7KyY4RVWgLRdX43WJojBRzMABN8eJu , ("can_poke" , 1n))]} │
-│                      │ Success (1850n)                                                                                                                                                │
-│                      │ "*** Run test to fail ***"                                                                                                                                     │
-│                      │ "contract deployed with values : "                                                                                                                             │
-│                      │ KT1UetUfHaJHa4skPVzyMzUahZtaVECt5MrF(None)                                                                                                                     │
-│                      │ Success (2218n)                                                                                                                                                │
-│                      │ "*** Check initial ticket is here ***"                                                                                                                         │
-│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = []}                                                                                                   │
-│                      │ Fail (Rejected (("User does not have tickets => not allowed" , KT1UetUfHaJHa4skPVzyMzUahZtaVECt5MrF)))                                                         │
-│                      │ Everything at the top-level was executed.                                                                                                                      │
-│                      │ - testSender1Poke exited with value ().                                                                                                                        │
-│                      │ - testSender1PokeWithNoTicketsToFail exited with value ().                                                                                                     │
-│                      │                                                                                                                                                                │
-│                      │ 🎉 All tests passed 🎉                                                                                                                                         │
-└──────────────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Contract             │ Test Results                                                                                                                                                          │
+├──────────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ unit_pokeGame.jsligo │ "Sender 1 has balance : "                                                                                                                                             │
+│                      │ 3800000000000mutez                                                                                                                                                    │
+│                      │ "*** Run test to pass ***"                                                                                                                                            │
+│                      │ "contract deployed with values : "                                                                                                                                    │
+│                      │ KT1BKUzj4fKj9yD3U5w4HcCwSBum28pELgfi(None)                                                                                                                            │
+│                      │ Success (2689n)                                                                                                                                                       │
+│                      │ "*** Check initial ticket is here ***"                                                                                                                                │
+│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = [tz1hkMbkLPkvhxyqsQoBoLPqb1mruSzZx3zy -> (KT1BKUzj4fKj9yD3U5w4HcCwSBum28pELgfi , ("can_poke" , 1n))]}        │
+│                      │ Success (1855n)                                                                                                                                                       │
+│                      │ {feedback = "kiss" ; pokeTraces = [tz1hkMbkLPkvhxyqsQoBoLPqb1mruSzZx3zy -> {feedback = "" ; receiver = KT1BKUzj4fKj9yD3U5w4HcCwSBum28pELgfi}] ; ticketOwnership = []} │
+│                      │ "*** Run test to fail ***"                                                                                                                                            │
+│                      │ "contract deployed with values : "                                                                                                                                    │
+│                      │ KT1GQDr8NZ4HkSzvH9Yqu6LApaH7DJe1jtGx(None)                                                                                                                            │
+│                      │ Success (2230n)                                                                                                                                                       │
+│                      │ "*** Check initial ticket is here ***"                                                                                                                                │
+│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = []}                                                                                                          │
+│                      │ Fail (Rejected (("User does not have tickets => not allowed" , KT1GQDr8NZ4HkSzvH9Yqu6LApaH7DJe1jtGx)))                                                                │
+│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = []}                                                                                                          │
+│                      │ Everything at the top-level was executed.                                                                                                                             │
+│                      │ - testSender1Poke exited with value ().                                                                                                                               │
+│                      │ - testSender1PokeWithNoTicketsToFail exited with value ().                                                                                                            │
+│                      │                                                                                                                                                                       │
+│                      │ 🎉 All tests passed 🎉                                                                                                                                                │
+└──────────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Step 3 : Redeploy the smart contract
@@ -416,17 +426,17 @@ First test should be fine
 Let play with the CLI to compile and deploy
 
 ```bash
-taq compile pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:0.65.0 taq compile pokeGame.jsligo
 taq generate types ./app/src
 taq deploy pokeGame.tz -e testing
 ```
 
 ```logs
-┌─────────────┬──────────────────────────────────────┬──────────┬──────────────────┬─────────────────────────────────────┐
-│ Contract    │ Address                              │ Alias    │ Balance In Mutez │ Destination                         │
-├─────────────┼──────────────────────────────────────┼──────────┼──────────────────┼─────────────────────────────────────┤
-│ pokeGame.tz │ KT1TFV55RYD5hqHLYiHouJoWBL1tQfSvf54a │ pokeGame │ 0                │ https://ghostnet.tezos.marigold.dev │
-└─────────────┴──────────────────────────────────────┴──────────┴──────────────────┴─────────────────────────────────────┘
+┌─────────────┬──────────────────────────────────────┬──────────┬──────────────────┬────────────────────────────────┐
+│ Contract    │ Address                              │ Alias    │ Balance In Mutez │ Destination                    │
+├─────────────┼──────────────────────────────────────┼──────────┼──────────────────┼────────────────────────────────┤
+│ pokeGame.tz │ KT1SL5hq9m3NcoRFZuEw78sF2nSS2oomedcY │ pokeGame │ 0                │ https://ghostnet.ecadinfra.com │
+└─────────────┴──────────────────────────────────────┴──────────┴──────────────────┴────────────────────────────────┘
 ```
 
 ## Step 4 : Adapt the frontend code
