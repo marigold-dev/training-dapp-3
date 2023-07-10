@@ -11,10 +11,10 @@ import { PokeGameWalletType, Storage } from "./pokeGame.types";
 import { address, nat } from "./type-aliases";
 
 function App() {
-  const [Tezos] = useState<TezosToolkit>(
+  const [Tezos, setTezos] = useState<TezosToolkit>(
     new TezosToolkit("https://ghostnet.tezos.marigold.dev")
   );
-  const [wallet] = useState<BeaconWallet>(
+  const [wallet, setWallet] = useState<BeaconWallet>(
     new BeaconWallet({
       name: "Training",
       preferredNetwork: NetworkType.GHOSTNET,
