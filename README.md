@@ -96,7 +96,7 @@ For each function having the storage as parameter, `store` object need to be des
 Add the new `Init` function
 
 ```ligolang
-/* @entry */
+@entry
 const init = ([a, ticketCount]: [address, nat], store: storage): return_ => {
   const { pokeTraces, feedback, ticketOwnership } = store;
   if (ticketCount == (0 as nat)) {
@@ -120,7 +120,7 @@ Init function looks at how many tickets to create from the current caller, then 
 Let's modify poke functions now
 
 ```ligolang
-/* @entry */
+@entry
 const poke = (_: parameter, store: storage): return_ => {
   const { pokeTraces, feedback, ticketOwnership } = store;
   const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
@@ -160,8 +160,8 @@ Second step, we can look at the optional ticket, if it exists, then we burn it (
 Same for `pokeAndGetFeedback` function, do same checks and type modifications as below
 
 ```ligolang
-/* @no_mutation */
-/* @entry */
+@no_mutation
+@entry
 const pokeAndGetFeedback = (oracleAddress: address, store: storage): return_ => {
   const { pokeTraces, feedback, ticketOwnership } = store;
   const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
@@ -223,14 +223,14 @@ Compile the contract to check any errors
 ```bash
 npm i
 
-taq compile pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:0.71.0 taq compile pokeGame.jsligo
 ```
 
 Check on logs that everything is fine :ok_hand:
 
 Try to display a DUP error now :japanese_goblin:
 
-Add this line on poke function after the first line of storage destructuration
+Add this line on `poke function` after the first line of storage destructuration
 
 ```ligolang
 const t2 = Map.find_opt(Tezos.get_source(), ticketOwnership);
@@ -386,7 +386,7 @@ const testSender1PokeWithNoTicketsToFail =
 Run the test, and look at the logs to track execution
 
 ```bash
-TAQ_LIGO_IMAGE=ligolang/ligo:0.65.0 taq test unit_pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:0.71.0 taq test unit_pokeGame.jsligo
 ```
 
 First test should be fine
@@ -426,7 +426,7 @@ First test should be fine
 Let play with the CLI to compile and deploy
 
 ```bash
-TAQ_LIGO_IMAGE=ligolang/ligo:0.65.0 taq compile pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:0.71.0 taq compile pokeGame.jsligo
 taq generate types ./app/src
 taq deploy pokeGame.tz -e testing
 ```
@@ -445,7 +445,7 @@ Rerun the app, we will check that can cannot use the app anymore without tickets
 
 ```bash
 cd app
-yarn run start
+yarn dev
 ```
 
 Connect with any wallet that has enough Tez, and Poke your own contract
@@ -462,9 +462,9 @@ We add a new button for minting on a specific contract, replace the full content
 
 ```typescript
 import { NetworkType } from "@airgap/beacon-types";
-import { Contract, ContractsService } from "@dipdup/tzkt-api";
 import { BeaconWallet } from "@taquito/beacon-wallet";
 import { TezosToolkit } from "@taquito/taquito";
+import * as api from "@tzkt/sdk-api";
 import { BigNumber } from "bignumber.js";
 import { useEffect, useState } from "react";
 import "./App.css";
@@ -474,51 +474,29 @@ import { PokeGameWalletType, Storage } from "./pokeGame.types";
 import { address, nat } from "./type-aliases";
 
 function App() {
-  const [Tezos, setTezos] = useState<TezosToolkit>(
-    new TezosToolkit("https://ghostnet.tezos.marigold.dev")
-  );
-  const [wallet, setWallet] = useState<BeaconWallet>(
-    new BeaconWallet({
-      name: "Training",
-      preferredNetwork: NetworkType.GHOSTNET,
-    })
-  );
+  api.defaults.baseUrl = "https://api.ghostnet.tzkt.io";
 
-  useEffect(() => {
-    Tezos.setWalletProvider(wallet);
-    (async () => {
-      const activeAccount = await wallet.client.getActiveAccount();
-      if (activeAccount) {
-        setUserAddress(activeAccount.address);
-        const balance = await Tezos.tz.getBalance(activeAccount.address);
-        setUserBalance(balance.toNumber());
-      }
-    })();
-  }, [wallet]);
-
-  const [userAddress, setUserAddress] = useState<string>("");
-  const [userBalance, setUserBalance] = useState<number>(0);
-
-  const [contractToPoke, setContractToPoke] = useState<string>("");
-
-  //tzkt
-  const contractsService = new ContractsService({
-    baseUrl: "https://api.ghostnet.tzkt.io",
-    version: "",
-    withCredentials: false,
+  const Tezos = new TezosToolkit("https://ghostnet.tezos.marigold.dev");
+  const wallet = new BeaconWallet({
+    name: "Training",
+    preferredNetwork: NetworkType.GHOSTNET,
   });
-  const [contracts, setContracts] = useState<Array<Contract>>([]);
+  Tezos.setWalletProvider(wallet);
+
+  const [contracts, setContracts] = useState<Array<api.Contract>>([]);
   const [contractStorages, setContractStorages] = useState<
     Map<string, Storage>
   >(new Map());
 
   const fetchContracts = () => {
     (async () => {
-      const tzktcontracts: Array<Contract> = await contractsService.getSimilar({
-        address: process.env["REACT_APP_CONTRACT_ADDRESS"]!,
-        includeStorage: true,
-        sort: { desc: "id" },
-      });
+      const tzktcontracts: Array<api.Contract> = await api.contractsGetSimilar(
+        import.meta.env.VITE_CONTRACT_ADDRESS,
+        {
+          includeStorage: true,
+          sort: { desc: "id" },
+        }
+      );
       setContracts(tzktcontracts);
       const taquitoContracts: Array<PokeGameWalletType> = await Promise.all(
         tzktcontracts.map(
@@ -535,16 +513,29 @@ function App() {
     })();
   };
 
+  useEffect(() => {
+    (async () => {
+      const activeAccount = await wallet.client.getActiveAccount();
+      if (activeAccount) {
+        setUserAddress(activeAccount.address);
+        const balance = await Tezos.tz.getBalance(activeAccount.address);
+        setUserBalance(balance.toNumber());
+      }
+    })();
+  }, []);
+
+  const [userAddress, setUserAddress] = useState<string>("");
+  const [userBalance, setUserBalance] = useState<number>(0);
+  const [contractToPoke, setContractToPoke] = useState<string>("");
+
   //poke
   const poke = async (
-    e: React.MouseEvent<HTMLButtonElement>,
-    contract: Contract
+    e: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+    contract: api.Contract
   ) => {
     e.preventDefault();
     let c: PokeGameWalletType = await Tezos.wallet.at("" + contract.address);
     try {
-      console.log("contractToPoke", contractToPoke);
-      c.storage();
       const op = await c.methods
         .pokeAndGetFeedback(contractToPoke as address)
         .send();
@@ -559,7 +550,7 @@ function App() {
   //mint
   const mint = async (
     e: React.MouseEvent<HTMLButtonElement>,
-    contract: Contract
+    contract: api.Contract
   ) => {
     e.preventDefault();
     let c: PokeGameWalletType = await Tezos.wallet.at("" + contract.address);
@@ -595,60 +586,55 @@ function App() {
         <div>
           I am {userAddress} with {userBalance} mutez
         </div>
-
-        <br />
-        <div>
-          <button onClick={fetchContracts}>Fetch contracts</button>
-          <table>
-            <thead>
-              <tr>
-                <th>address</th>
-                <th>trace "contract - feedback - user"</th>
-                <th>action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {contracts.map((contract) => (
-                <tr>
-                  <td style={{ borderStyle: "dotted" }}>{contract.address}</td>
-                  <td style={{ borderStyle: "dotted" }}>
-                    {contractStorages.get(contract.address!) !== undefined &&
-                    contractStorages.get(contract.address!)!.pokeTraces
-                      ? Array.from(
-                          contractStorages
-                            .get(contract.address!)!
-                            .pokeTraces.entries()
-                        ).map(
-                          (e) =>
-                            e[1].receiver +
-                            " " +
-                            e[1].feedback +
-                            " " +
-                            e[0] +
-                            ","
-                        )
-                      : ""}
-                  </td>
-                  <td style={{ borderStyle: "dotted" }}>
-                    <input
-                      type="text"
-                      onChange={(e) => {
-                        console.log("e", e.currentTarget.value);
-                        setContractToPoke(e.currentTarget.value);
-                      }}
-                      placeholder="enter contract address here"
-                    />
-                    <button onClick={(e) => poke(e, contract)}>Poke</button>
-                    <button onClick={(e) => mint(e, contract)}>
-                      Mint 1 ticket
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </header>
+
+      <br />
+      <div>
+        <button onClick={fetchContracts}>Fetch contracts</button>
+        <table>
+          <thead>
+            <tr>
+              <th>address</th>
+              <th>trace "contract - feedback - user"</th>
+              <th>action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {contracts.map((contract) => (
+              <tr>
+                <td style={{ borderStyle: "dotted" }}>{contract.address}</td>
+                <td style={{ borderStyle: "dotted" }}>
+                  {contractStorages.get(contract.address!) !== undefined &&
+                  contractStorages.get(contract.address!)!.pokeTraces
+                    ? Array.from(
+                        contractStorages
+                          .get(contract.address!)!
+                          .pokeTraces.entries()
+                      ).map(
+                        (e) =>
+                          e[1].receiver + " " + e[1].feedback + " " + e[0] + ","
+                      )
+                    : ""}
+                </td>
+                <td style={{ borderStyle: "dotted" }}>
+                  <input
+                    type="text"
+                    onChange={(e) => {
+                      console.log("e", e.currentTarget.value);
+                      setContractToPoke(e.currentTarget.value);
+                    }}
+                    placeholder="enter contract address here"
+                  />
+                  <button onClick={(e) => poke(e, contract)}>Poke</button>
+                  <button onClick={(e) => mint(e, contract)}>
+                    Mint 1 ticket
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
