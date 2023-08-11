@@ -123,6 +123,7 @@ Let's modify poke functions now
 @entry
 const poke = (_: parameter, store: storage): return_ => {
   const { pokeTraces, feedback, ticketOwnership } = store;
+  ignore(feedback);
   const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
     Map.get_and_update(
       Tezos.get_source(),
@@ -223,7 +224,7 @@ Compile the contract to check any errors
 ```bash
 npm i
 
-TAQ_LIGO_IMAGE=ligolang/ligo:0.71.0 taq compile pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:0.71.1 taq compile pokeGame.jsligo
 ```
 
 Check on logs that everything is fine :ok_hand:
