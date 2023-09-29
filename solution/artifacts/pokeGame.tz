@@ -1,40 +1,72 @@
 { parameter
-    (or (or (pair %init address nat) (unit %poke)) (address %pokeAndGetFeedback)) ;
+    (or (pair %init address nat) (or (address %pokeAndGetFeedback) (unit %poke))) ;
   storage
-    (pair (pair (string %feedback)
-                (map %pokeTraces address (pair (string %feedback) (address %receiver))))
+    (pair (map %pokeTraces address (pair (address %receiver) (string %feedback)))
+          (string %feedback)
           (map %ticketOwnership address (ticket string))) ;
   code { UNPAIR ;
          IF_LEFT
+           { UNPAIR ;
+             DIG 2 ;
+             UNPAIR 3 ;
+             PUSH nat 0 ;
+             DUP 6 ;
+             COMPARE ;
+             EQ ;
+             IF { DIG 3 ; DIG 4 ; DROP 2 ; DIG 2 }
+                { DIG 4 ;
+                  PUSH string "can_poke" ;
+                  TICKET ;
+                  IF_NONE { PUSH string "option is None" ; FAILWITH } {} ;
+                  DIG 3 ;
+                  SWAP ;
+                  DIG 4 ;
+                  SWAP ;
+                  SOME ;
+                  SWAP ;
+                  UPDATE } ;
+             DUG 2 ;
+             PAIR 3 ;
+             NIL operation ;
+             PAIR }
            { IF_LEFT
-               { UNPAIR ;
-                 DIG 2 ;
-                 UNPAIR ;
-                 UNPAIR ;
-                 PUSH nat 0 ;
-                 DUP 6 ;
-                 COMPARE ;
-                 EQ ;
-                 IF { DIG 3 ; DIG 4 ; DROP 2 ; DIG 2 }
-                    { DIG 4 ;
-                      PUSH string "can_poke" ;
-                      TICKET ;
-                      IF_NONE { PUSH string "option is None" ; FAILWITH } {} ;
-                      DIG 3 ;
-                      SWAP ;
-                      DIG 4 ;
-                      SWAP ;
-                      SOME ;
-                      SWAP ;
-                      UPDATE } ;
-                 DUG 2 ;
-                 PAIR ;
-                 PAIR ;
-                 NIL operation ;
-                 PAIR }
+               { SWAP ;
+                 UNPAIR 3 ;
+                 SWAP ;
+                 DROP ;
+                 SWAP ;
+                 NONE (ticket string) ;
+                 SOURCE ;
+                 GET_AND_UPDATE ;
+                 DUP 4 ;
+                 UNIT ;
+                 VIEW "feedback" string ;
+                 SWAP ;
+                 IF_NONE
+                   { DROP 4 ;
+                     PUSH string "User does not have tickets => not allowed" ;
+                     FAILWITH }
+                   { DROP ;
+                     IF_NONE
+                       { DROP 3 ;
+                         PUSH string "Cannot find view feedback on given oracle address" ;
+                         FAILWITH }
+                       { SWAP ;
+                         DUP 2 ;
+                         DIG 3 ;
+                         DIG 3 ;
+                         DIG 4 ;
+                         PAIR ;
+                         SOURCE ;
+                         SWAP ;
+                         SOME ;
+                         SWAP ;
+                         UPDATE ;
+                         PAIR 3 ;
+                         NIL operation ;
+                         PAIR } } }
                { DROP ;
-                 UNPAIR ;
-                 UNPAIR ;
+                 UNPAIR 3 ;
                  DIG 2 ;
                  NONE (ticket string) ;
                  SOURCE ;
@@ -44,54 +76,17 @@
                      PUSH string "User does not have tickets => not allowed" ;
                      FAILWITH }
                    { DROP ;
-                     DIG 2 ;
-                     SELF_ADDRESS ;
+                     DUG 2 ;
                      PUSH string "" ;
+                     SELF_ADDRESS ;
                      PAIR ;
                      SOURCE ;
                      SWAP ;
                      SOME ;
                      SWAP ;
                      UPDATE ;
-                     DIG 2 ;
-                     PAIR ;
-                     PAIR ;
-                     NIL operation ;
-                     PAIR } } }
-           { SWAP ;
-             UNPAIR ;
-             CDR ;
-             SWAP ;
-             NONE (ticket string) ;
-             SOURCE ;
-             GET_AND_UPDATE ;
-             DUP 4 ;
-             UNIT ;
-             VIEW "feedback" string ;
-             SWAP ;
-             IF_NONE
-               { DROP 4 ;
-                 PUSH string "User does not have tickets => not allowed" ;
-                 FAILWITH }
-               { DROP ;
-                 IF_NONE
-                   { DROP 3 ;
-                     PUSH string "Cannot find view feedback on given oracle address" ;
-                     FAILWITH }
-                   { SWAP ;
-                     DIG 2 ;
-                     DIG 3 ;
-                     DUP 4 ;
-                     PAIR ;
-                     SOURCE ;
-                     SWAP ;
-                     SOME ;
-                     SWAP ;
-                     UPDATE ;
-                     DIG 2 ;
-                     PAIR ;
-                     PAIR ;
+                     PAIR 3 ;
                      NIL operation ;
                      PAIR } } } } ;
-  view "feedback" unit string { CDR ; CAR ; CAR } }
+  view "feedback" unit string { CDR ; GET 3 } }
 

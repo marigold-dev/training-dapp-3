@@ -10,16 +10,10 @@ export type storage = {
 
 };
 
-type returned_feedback = [address, string];
-
-type oracle_param = contract<returned_feedback>;
-
-type parameter = unit;
-
 type return_ = [list<operation>, storage];
 
 @entry
-const poke = (_: parameter, store: storage): return_ => {
+const poke = (_: unit, store: storage): return_ => {
   const { pokeTraces, feedback, ticketOwnership } = store;
   const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
     Map.get_and_update(
@@ -28,7 +22,7 @@ const poke = (_: parameter, store: storage): return_ => {
       ticketOwnership
     );
   return match(t) {
-    when (None):
+    when (None()):
       failwith("User does not have tickets => not allowed")
     when (Some(_t)):
       [
@@ -46,17 +40,6 @@ const poke = (_: parameter, store: storage): return_ => {
   }
 };
 
-/*
-@entry
-const getFeedback = (contract_callback : contract<returned_feedback>, store : storage): return_ => {
-    let op : operation = Tezos.transaction(
-            [Tezos.get_self_address(),store.feedback],
-            (0 as mutez),
-            contract_callback);
-    return [list([op]) ,store];
-};
-*/
-
 @no_mutation
 @entry
 const pokeAndGetFeedback = (oracleAddress: address, store: storage): return_ => {
@@ -71,7 +54,7 @@ const pokeAndGetFeedback = (oracleAddress: address, store: storage): return_ => 
   let feedbackOpt: option<string> =
     Tezos.call_view("feedback", unit, oracleAddress);
   return match(t) {
-    when (None):
+    when (None()):
       failwith("User does not have tickets => not allowed")
     when (Some(_t)):
       match(feedbackOpt) {
@@ -94,23 +77,11 @@ const pokeAndGetFeedback = (oracleAddress: address, store: storage): return_ => 
               }
             ]
           }
-        when (None):
+        when (None()):
           failwith("Cannot find view feedback on given oracle address")
       }
   }
 };
-
-/*
-@entry
-const pokeAndGetFeedbackCallback = (feedback : returned_feedback, store : storage) : return_ => {
-    let feedbackMessage = {receiver : feedback[0] ,feedback: feedback[1]};
-    return [  list([]) as list<operation>, {...store,
-        pokeTraces : Map.add(Tezos.get_source(), feedbackMessage , store.pokeTraces) }];
-};
-*/
-
-@view
-const feedback = (_: unit, store: storage): string => { return store.feedback };
 
 @entry
 const init = ([a, ticketCount]: [address, nat], store: storage): return_ => {
@@ -129,3 +100,6 @@ const init = ([a, ticketCount]: [address, nat], store: storage): return_ => {
     ]
   }
 };
+
+@view
+const feedback = (_: unit, store: storage): string => { return store.feedback };
