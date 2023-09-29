@@ -117,38 +117,35 @@ const init = ([a, ticketCount]: [address, nat], store: storage): return_ => {
 
 Init function looks at how many tickets to create from the current caller, then it is added to the current map
 
-Let's modify poke functions now
+Modify poke function
 
 ```ligolang
 @entry
-const poke = (_: parameter, store: storage): return_ => {
+const poke = (_: unit, store: storage): return_ => {
   const { pokeTraces, feedback, ticketOwnership } = store;
-  ignore(feedback);
   const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
     Map.get_and_update(
       Tezos.get_source(),
       None() as option<ticket<string>>,
       ticketOwnership
     );
-  return match(
-    t,
-    {
-      None: () => failwith("User does not have tickets => not allowed"),
-      Some: (_t: ticket<string>) =>
-        [
-          list([]) as list<operation>,
-          {
-            feedback,
-            pokeTraces: Map.add(
-              Tezos.get_source(),
-              { receiver: Tezos.get_self_address(), feedback: "" },
-              pokeTraces
-            ),
-            ticketOwnership: tom
-          }
-        ]
-    }
-  )
+  return match(t) {
+    when (None):
+      failwith("User does not have tickets => not allowed")
+    when (Some(_t)):
+      [
+        list([]) as list<operation>,
+        {
+          feedback,
+          pokeTraces: Map.add(
+            Tezos.get_source(),
+            { receiver: Tezos.get_self_address(), feedback: "" },
+            pokeTraces
+          ),
+          ticketOwnership: tom
+        }
+      ]
+  }
 };
 ```
 
@@ -165,6 +162,7 @@ Same for `pokeAndGetFeedback` function, do same checks and type modifications as
 @entry
 const pokeAndGetFeedback = (oracleAddress: address, store: storage): return_ => {
   const { pokeTraces, feedback, ticketOwnership } = store;
+  ignore(feedback);
   const [t, tom]: [option<ticket<string>>, map<address, ticket<string>>] =
     Map.get_and_update(
       Tezos.get_source(),
@@ -173,47 +171,51 @@ const pokeAndGetFeedback = (oracleAddress: address, store: storage): return_ => 
     );
   let feedbackOpt: option<string> =
     Tezos.call_view("feedback", unit, oracleAddress);
-  return match(
-    t,
-    {
-      None: () => failwith("User does not have tickets => not allowed"),
-      Some: (_t: ticket<string>) =>
-        match(
-          feedbackOpt,
-          {
-            Some: (feedback: string) => {
-              let feedbackMessage =
-                { receiver: oracleAddress, feedback: feedback };
-              return [
-                list([]) as list<operation>,
-                {
-                  feedback,
-                  pokeTraces: Map.add(
-                    Tezos.get_source(),
-                    feedbackMessage,
-                    pokeTraces
-                  ),
-                  ticketOwnership: tom
-                }
-              ]
-            },
-            None: () =>
-              failwith("Cannot find view feedback on given oracle address")
+  return match(t) {
+    when (None):
+      failwith("User does not have tickets => not allowed")
+    when (Some(_t)):
+      match(feedbackOpt) {
+        when (Some(feedback)):
+          do {
+            let feedbackMessage = {
+              receiver: oracleAddress,
+              feedback: feedback
+            };
+            return [
+              list([]) as list<operation>,
+              {
+                feedback,
+                pokeTraces: Map.add(
+                  Tezos.get_source(),
+                  feedbackMessage,
+                  pokeTraces
+                ),
+                ticketOwnership: tom
+              }
+            ]
           }
-        )
-    }
-  )
+        when (None):
+          failwith("Cannot find view feedback on given oracle address")
+      }
+  }
 };
 ```
 
 Update the storage initialization on `pokeGame.storages.jsligo`
 
 ```ligolang
-#include "pokeGame.jsligo"
+#import "pokeGame.jsligo" "Contract"
+
 const default_storage = {
-    pokeTraces : Map.empty as map<address, pokeMessage>,
-    feedback : "kiss",
-    ticketOwnership : Map.empty as map<address,ticket<string>>  //ticket of claims
+    pokeTraces: Map.empty as map<address, Contract.pokeMessage>,
+    feedback: "kiss",
+    ticketOwnership: Map.empty as
+        map<
+            address,
+            ticket<string>
+        > //ticket of claims
+
 };
 ```
 
@@ -224,14 +226,14 @@ Compile the contract to check any errors
 ```bash
 npm i
 
-TAQ_LIGO_IMAGE=ligolang/ligo:0.73.0 taq compile pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:1.0.0 taq compile pokeGame.jsligo
 ```
 
 Check on logs that everything is fine :ok_hand:
 
 Try to display a DUP error now :japanese_goblin:
 
-Add this line on `poke function` after the first line of storage destructuration
+Add this line on `poke function` after the first line of storage destructuration `const { pokeTraces, feedback, ticketOwnership } = store;`
 
 ```ligolang
 const t2 = Map.find_opt(Tezos.get_source(), ticketOwnership);
@@ -240,7 +242,7 @@ const t2 = Map.find_opt(Tezos.get_source(), ticketOwnership);
 Compile again
 
 ```bash
-TAQ_LIGO_IMAGE=ligolang/ligo:0.73.0 taq compile pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:1.0.0 taq compile pokeGame.jsligo
 ```
 
 This time you should see the `DUP` warning generated by the find function
@@ -259,6 +261,7 @@ Edit `./contracts/unit_pokeGame.jsligo`
 
 ```ligolang
 #import "./pokeGame.jsligo" "PokeGame"
+
 export type main_fn = module_contract<parameter_of PokeGame, PokeGame.storage>;
 
 const _ = Test.reset_state(2 as nat, list([]) as list<tez>);
@@ -267,19 +270,19 @@ const faucet = Test.nth_bootstrap_account(0);
 
 const sender1: address = Test.nth_bootstrap_account(1);
 
-const _ = Test.log("Sender 1 has balance : ");
+const _1 = Test.log("Sender 1 has balance : ");
 
-const _ = Test.log(Test.get_balance(sender1));
+const _2 = Test.log(Test.get_balance_of_address(sender1));
 
-const _ = Test.set_baker(faucet);
+const _3 = Test.set_baker(faucet);
 
-const _ = Test.set_source(faucet);
+const _4 = Test.set_source(faucet);
 
-const initial_storage =
-{
-pokeTraces : Map.empty as map<address, PokeGame.pokeMessage> ,
-feedback : "kiss" ,
-ticketOwnership : Map.empty as map<address,ticket<string>>};
+const initial_storage = {
+  pokeTraces: Map.empty as map<address, PokeGame.pokeMessage>,
+  feedback: "kiss",
+  ticketOwnership: Map.empty as map<address, ticket<string>>
+};
 
 const initial_tez = 0 as tez;
 
@@ -304,77 +307,60 @@ export const _testPoke = (
   Test.log(status);
   const store: PokeGame.storage = Test.get_storage(taddr);
   Test.log(store);
-  return match(
-    status,
-    {
-      Fail: (tee: test_exec_error) =>
-        match(
-          tee,
-          {
-            Other: (msg: string) =>
-              assert_with_error(expectedResult == false, msg),
-            Balance_too_low: (_record: test_exec_error_balance_too_low) =>
-              assert_with_error(
-                expectedResult == false,
-                "ERROR Balance_too_low"
-              ),
-            Rejected: (s: [michelson_program, address]) =>
-              assert_with_error(expectedResult == false, Test.to_string(s[0]))
-          }
-        ),
-      Success: (_n: nat) =>
-        match(
-          Map.find_opt(
-            s,
-            (Test.get_storage(taddr) as PokeGame.storage).pokeTraces
-          ),
-          {
-            Some: (pokeMessage: PokeGame.pokeMessage) => {
-              assert_with_error(
-                pokeMessage.feedback == "",
-                "feedback " + pokeMessage.feedback +
-                  " is not equal to expected " + "(empty)"
-              );
-              assert_with_error(
-                pokeMessage.receiver == contrAddress,
-                "receiver is not equal"
-              )
-            },
-            None: () =>
-              assert_with_error(expectedResult == false, "don't find traces")
-          }
+  return match(status) {
+    when (Fail(tee)):
+      match(tee) {
+        when (Other(msg)):
+          assert_with_error(expectedResult == false, msg)
+        when (Balance_too_low(_record)):
+          assert_with_error(expectedResult == false, "ERROR Balance_too_low")
+        when (Rejected(s)):
+          assert_with_error(expectedResult == false, Test.to_string(s[0]))
+      }
+    when (Success(_n)):
+      match(
+        Map.find_opt(
+          s,
+          (Test.get_storage(taddr) as PokeGame.storage).pokeTraces
         )
-    }
-  )
+      ) {
+        when (Some(pokeMessage)):
+          do {
+            assert_with_error(
+              pokeMessage.feedback == "",
+              "feedback " + pokeMessage.feedback + " is not equal to expected "
+              + "(empty)"
+            );
+            assert_with_error(
+              pokeMessage.receiver == contrAddress,
+              "receiver is not equal"
+            )
+          }
+        when (None()):
+          assert_with_error(expectedResult == false, "don't find traces")
+      }
+  }
 };
 
-const _ = Test.log("*** Run test to pass ***");
+const _5 = Test.log("*** Run test to pass ***");
 
 const testSender1Poke =
   (
     (): unit => {
-      const [taddr, _, _] =
-        Test.originate_module(
-          contract_of(PokeGame),
-          initial_storage,
-          initial_tez
-        );
-      _testPoke(taddr, sender1, 1 as nat, true)
+      const orig =
+        Test.originate(contract_of(PokeGame), initial_storage, initial_tez);
+      _testPoke(orig.addr, sender1, 1 as nat, true)
     }
   )();
 
-const _ = Test.log("*** Run test to fail ***");
+const _6 = Test.log("*** Run test to fail ***");
 
 const testSender1PokeWithNoTicketsToFail =
   (
     (): unit => {
-      const [taddr, _, _] =
-        Test.originate_module(
-          contract_of(PokeGame),
-          initial_storage,
-          initial_tez
-        );
-      _testPoke(taddr, sender1, 0 as nat, false)
+      const orig =
+        Test.originate(contract_of(PokeGame), initial_storage, initial_tez);
+      _testPoke(orig.addr, sender1, 0 as nat, false)
     }
   )();
 ```
@@ -387,7 +373,7 @@ const testSender1PokeWithNoTicketsToFail =
 Run the test, and look at the logs to track execution
 
 ```bash
-TAQ_LIGO_IMAGE=ligolang/ligo:0.73.0 taq test unit_pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:1.0.0 taq test unit_pokeGame.jsligo
 ```
 
 First test should be fine
@@ -400,19 +386,19 @@ First test should be fine
 │                      │ 3800000000000mutez                                                                                                                                                    │
 │                      │ "*** Run test to pass ***"                                                                                                                                            │
 │                      │ "contract deployed with values : "                                                                                                                                    │
-│                      │ KT1BKUzj4fKj9yD3U5w4HcCwSBum28pELgfi(None)                                                                                                                            │
-│                      │ Success (2689n)                                                                                                                                                       │
+│                      │ KT1HeEVF74BLi3fYCpr1tpkDGmruFBNjMATo(None)                                                                                                                            │
+│                      │ Success (1858n)                                                                                                                                                       │
 │                      │ "*** Check initial ticket is here ***"                                                                                                                                │
-│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = [tz1hkMbkLPkvhxyqsQoBoLPqb1mruSzZx3zy -> (KT1BKUzj4fKj9yD3U5w4HcCwSBum28pELgfi , ("can_poke" , 1n))]}        │
-│                      │ Success (1855n)                                                                                                                                                       │
-│                      │ {feedback = "kiss" ; pokeTraces = [tz1hkMbkLPkvhxyqsQoBoLPqb1mruSzZx3zy -> {feedback = "" ; receiver = KT1BKUzj4fKj9yD3U5w4HcCwSBum28pELgfi}] ; ticketOwnership = []} │
+│                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = [tz1hkMbkLPkvhxyqsQoBoLPqb1mruSzZx3zy -> (KT1HeEVF74BLi3fYCpr1tpkDGmruFBNjMATo , ("can_poke" , 1n))]}        │
+│                      │ Success (1024n)                                                                                                                                                       │
+│                      │ {feedback = "kiss" ; pokeTraces = [tz1hkMbkLPkvhxyqsQoBoLPqb1mruSzZx3zy -> {feedback = "" ; receiver = KT1HeEVF74BLi3fYCpr1tpkDGmruFBNjMATo}] ; ticketOwnership = []} │
 │                      │ "*** Run test to fail ***"                                                                                                                                            │
 │                      │ "contract deployed with values : "                                                                                                                                    │
-│                      │ KT1GQDr8NZ4HkSzvH9Yqu6LApaH7DJe1jtGx(None)                                                                                                                            │
-│                      │ Success (2230n)                                                                                                                                                       │
+│                      │ KT1HDbqhYiKs8e3LkNAcT9T2MQgvUdxPtbV5(None)                                                                                                                            │
+│                      │ Success (1399n)                                                                                                                                                       │
 │                      │ "*** Check initial ticket is here ***"                                                                                                                                │
 │                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = []}                                                                                                          │
-│                      │ Fail (Rejected (("User does not have tickets => not allowed" , KT1GQDr8NZ4HkSzvH9Yqu6LApaH7DJe1jtGx)))                                                                │
+│                      │ Fail (Rejected (("User does not have tickets => not allowed" , KT1HDbqhYiKs8e3LkNAcT9T2MQgvUdxPtbV5)))                                                                │
 │                      │ {feedback = "kiss" ; pokeTraces = [] ; ticketOwnership = []}                                                                                                          │
 │                      │ Everything at the top-level was executed.                                                                                                                             │
 │                      │ - testSender1Poke exited with value ().                                                                                                                               │
@@ -427,7 +413,7 @@ First test should be fine
 Let play with the CLI to compile and deploy
 
 ```bash
-TAQ_LIGO_IMAGE=ligolang/ligo:0.73.0 taq compile pokeGame.jsligo
+TAQ_LIGO_IMAGE=ligolang/ligo:1.0.0 taq compile pokeGame.jsligo
 taq generate types ./app/src
 taq deploy pokeGame.tz -e testing
 ```
@@ -436,7 +422,7 @@ taq deploy pokeGame.tz -e testing
 ┌─────────────┬──────────────────────────────────────┬──────────┬──────────────────┬────────────────────────────────┐
 │ Contract    │ Address                              │ Alias    │ Balance In Mutez │ Destination                    │
 ├─────────────┼──────────────────────────────────────┼──────────┼──────────────────┼────────────────────────────────┤
-│ pokeGame.tz │ KT1SL5hq9m3NcoRFZuEw78sF2nSS2oomedcY │ pokeGame │ 0                │ https://ghostnet.ecadinfra.com │
+│ pokeGame.tz │ KT1TC1DabCTmdMXuuCxwUmyb51bn2mbeNvbW │ pokeGame │ 0                │ https://ghostnet.ecadinfra.com │
 └─────────────┴──────────────────────────────────────┴──────────┴──────────────────┴────────────────────────────────┘
 ```
 
@@ -459,7 +445,7 @@ My Kukai wallet is giving me back the error from the smart contract
 
 Ok, so let's authorize some :sparkler: minting on my user and try again to poke
 
-We add a new button for minting on a specific contract, replace the full content of `App.tsx` as it :
+We add a new button for minting on a specific contract, replace the full content of `App.tsx` with :
 
 ```typescript
 import { NetworkType } from "@airgap/beacon-types";

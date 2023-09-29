@@ -3,11 +3,11 @@ import { ContractAbstractionFromContractType, WalletContractAbstractionFromContr
 import { address, MMap, nat, ticket } from './type-aliases';
 
 export type Storage = {
-    feedback: string;
     pokeTraces: MMap<address, {
-        feedback: string;
         receiver: address;
+        feedback: string;
     }>;
+    feedback: string;
     ticketOwnership: MMap<address, ticket>;
 };
 
@@ -16,8 +16,8 @@ type Methods = {
         _0: address,
         _1: nat,
     ) => Promise<void>;
-    poke: () => Promise<void>;
     pokeAndGetFeedback: (param: address) => Promise<void>;
+    poke: () => Promise<void>;
 };
 
 type MethodsObject = {
@@ -25,8 +25,8 @@ type MethodsObject = {
         0: address,
         1: nat,
     }) => Promise<void>;
-    poke: () => Promise<void>;
     pokeAndGetFeedback: (param: address) => Promise<void>;
+    poke: () => Promise<void>;
 };
 
 type contractTypes = { methods: Methods, methodsObject: MethodsObject, storage: Storage, code: { __type: 'PokeGameCode', protocol: string, code: object[] } };
