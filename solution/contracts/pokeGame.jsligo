@@ -102,4 +102,6 @@ const init = ([a, ticketCount]: [address, nat], store: storage): return_ => {
 };
 
 @view
-const feedback = (_: unit, store: storage): string => { return store.feedback };
+export const feedback = (_: unit, store: storage): string => {
+  return store.feedback
+};
