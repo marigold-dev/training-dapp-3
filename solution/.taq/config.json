@@ -59,7 +59,7 @@
         },
         {
             "type": "npm",
-            "name": "@taqueria/plugin-contract-types"
+            "name": "@taqueria/plugin-taquito"
         },
         {
             "type": "npm",
@@ -67,7 +67,7 @@
         },
         {
             "type": "npm",
-            "name": "@taqueria/plugin-taquito"
+            "name": "@taqueria/plugin-contract-types"
         }
     ]
 }

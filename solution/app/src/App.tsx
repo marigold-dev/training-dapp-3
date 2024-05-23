@@ -13,12 +13,15 @@ import { address, nat } from "./type-aliases";
 function App() {
   api.defaults.baseUrl = "https://api.ghostnet.tzkt.io";
 
-  const Tezos = new TezosToolkit("https://ghostnet.tezos.marigold.dev");
-  const wallet = new BeaconWallet({
-    name: "Training",
-    preferredNetwork: NetworkType.GHOSTNET,
-  });
-  Tezos.setWalletProvider(wallet);
+  const [Tezos, setTezos] = useState<TezosToolkit>(
+    new TezosToolkit("https://ghostnet.ecadinfra.com")
+  );
+  const [wallet, setWallet] = useState<BeaconWallet>(
+    new BeaconWallet({
+      name: "Training",
+      preferredNetwork: NetworkType.GHOSTNET,
+    })
+  );
 
   const [contracts, setContracts] = useState<Array<api.Contract>>([]);
   const [contractStorages, setContractStorages] = useState<
@@ -73,7 +76,7 @@ function App() {
     e.preventDefault();
     let c: PokeGameWalletType = await Tezos.wallet.at("" + contract.address);
     try {
-      const op = await c.methods
+      const op = await c.methodsObject
         .pokeAndGetFeedback(contractToPoke as address)
         .send();
       await op.confirmation();
@@ -109,6 +112,7 @@ function App() {
       <header className="App-header">
         <ConnectButton
           Tezos={Tezos}
+          setTezos={setTezos}
           setUserAddress={setUserAddress}
           setUserBalance={setUserBalance}
           wallet={wallet}
